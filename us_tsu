@@ -1,0 +1,421 @@
+# Package Installation ----------------------------------------------------
+
+#Installing Packages
+
+#Tables
+install.packages('data.table') #Enhanced version of data frame
+install.packages('tibble') #Simple data frames
+
+#Cleaning & Transformation
+install.packages('lubridate') #Date and time transformations
+install.packages('magrittr') #%>% 
+install.packages('stringr') #String mutations
+install.packages('plyr') 
+install.packages('dplyr') 
+install.packages('tidyr') 
+install.packages('tidyverse') 
+install.packages('mgsub') #Multiple Text Substitution 
+install.packages("DatabaseConnector") #eoMonth function
+#install.packages("devtools")
+#install.packages("rJava", INSTALL_opts = "--no-multiarch")
+#devtools::install_github("OHDSI/DatabaseConnector", INSTALL_opts = "--no-multiarch")
+#devtools::install_github("OHDSI/SqlRender", INSTALL_opts = "--no-multiarch")
+
+#Modelling
+install.packages('prophet')
+
+#Charting
+install.packages('ggplot2')
+
+#Exporting
+install.packages('openxlsx')
+
+#Running Packages
+library(plyr)
+library(data.table)
+library(lubridate)
+library(magrittr)
+library(dplyr)
+library(stringr)
+library(tibble)
+library(tidyr)
+library(tidyverse)
+library(ggplot2)
+library(prophet)
+library(mgsub)
+library(DatabaseConnector) #why is this not loading
+library(openxlsx)
+
+# Toggle ------------------------------------------------------------------
+
+#Countries
+T_US <- 1
+
+# Functions ---------------------------------------------------------------
+
+#Creating an alternative future function
+last_day <- function(date) {
+  lubridate::ceiling_date(date, "month") - days(1)
+}
+
+first_day <- function(date) {
+  lubridate::floor_date(date, "month")
+}
+
+future_months <- function(m, periods){
+  existing <- m$history.dates
+  days <- last_day(seq(first_day(max(m$history.dates)), length.out = periods, by = "month"))
+  days <- days[2:length(days)]
+  
+  future <- data.frame(ds = c(existing, days))
+  return(future)
+}
+
+#Campaign Dates
+cc_dates <- c("2025-04-11","2024-05-24","2023-03-23")
+canva_create <- function(ds) {
+  dates <- as.Date(ds)
+  dates_formatted <- as.Date(format(dates, '%Y-%m-%d'))
+  as.numeric((dates %in% cc_dates))
+}
+
+#Transpose dataframe
+transpose_df <- function(df) {
+  t_df <- data.table::transpose(df)
+  colnames(t_df) <- rownames(df)
+  rownames(t_df) <- colnames(df)
+  t_df <- t_df %>%
+    tibble::rownames_to_column(.data = .) %>%
+    tibble::as_tibble(.)
+  return(t_df)
+}
+
+# Input & Data set Imports ------------------------------------------------
+
+#Important Dates
+D_ForecastStart <- "2025-03-01"
+D_ForecastEnd <- "2025-12-31"
+D_ActualStart <- "2022-01-01"
+Today <- now()
+Today_Text <- format(Today, "%Y.%m.%d")
+
+#Working Directory
+getwd()
+
+#Set Working Directory
+input_directory <- "/Users/grac/Documents/Regression Models/Inputs/"
+output_directory <- "/Users/grac/Documents/Regression Models/Outputs/"
+
+#Import Data sets
+PSU <- fread(file=paste0(input_directory, "2025.03.12 Signups", ".csv"), 
+             check.names = TRUE)
+US_PSU <- fread(file=paste0(input_directory, "2025.03.07_Looker_US_PSU_Daily", ".csv"), 
+                       check.names = TRUE)
+Holidays <- fread(file=paste0(input_directory, "collated_holidays", ".csv"), 
+                  check.names = TRUE)
+US_MS_A_1 <- fread(file=paste0(input_directory, "2025.03.06_Looker_All_MS_2022_2022", ".csv"), 
+                          check.names = TRUE)
+US_MS_A_2 <- fread(file=paste0(input_directory, "2025.03.06_Looker_All_MS_2022_Now", ".csv"), 
+                 check.names = TRUE)
+US_MS_F <- fread(file=paste0(input_directory, "2025.03.06_MS_2025", ".csv"), 
+                          check.names = TRUE)
+
+# Cleaning & Transformation -----------------------------------------------
+
+############ y: Paid Sign-Ups
+
+#Format the Date
+PSU$Date <- as.Date(PSU$Date, format="%m/%d/%Y")
+
+#Filtering
+US_PSU <- PSU %>% 
+  filter(MAP_STRATEGY_REGION == "United States of America") %>% 
+  select(Date, SIGNUPS) %>% 
+  rename(ds = Date) %>% 
+  rename(y = SIGNUPS) %>% 
+  group_by(ds) %>% 
+  summarise(y = sum(y)) %>% arrange(ds)
+
+############ Regressor: Marketing Spend (Actuals)
+
+#Rename Column Names
+colnames(US_MS_A_1) <- c("n","Date","Country","Brand","Payback","Seeding")
+colnames(US_MS_A_2) <- c("n","Date","Country","Balanced","Brand","MAU","Payback","Print","Revenue","Seeding")
+
+#Merge
+US_MS_A <- rbind(US_MS_A_2,US_MS_A_1, fill=TRUE)
+
+#Clean 
+US_MS_A <- US_MS_A %>% 
+  filter(!is.na(n)) %>% 
+  filter(Country == "US") %>% 
+  select(Date, Balanced, Brand, MAU, Payback, Revenue, Seeding) 
+
+#Transform into Prophet formatting 
+US_MS_A$Balanced <- as.numeric(mgsub::mgsub(US_MS_A$Balanced, c("[\\,]","[\\$]"), c("","")))
+US_MS_A$Payback <- as.numeric(mgsub::mgsub(US_MS_A$Payback, c("[\\,]","[\\$]"), c("","")))
+US_MS_A$Revenue <- as.numeric(mgsub::mgsub(US_MS_A$Revenue, c("[\\,]","[\\$]"), c("","")))
+US_MS_A$Seeding <- as.numeric(mgsub::mgsub(US_MS_A$Seeding, c("[\\,]","[\\$]"), c("","")))
+US_MS_A$MAU <- as.numeric(mgsub::mgsub(US_MS_A$MAU, c("[\\,]","[\\$]"), c("","")))
+US_MS_A$Brand <- as.numeric(mgsub::mgsub(US_MS_A$Brand, c("[\\,]","[\\$]"), c("","")))
+US_MS_A$Date <- ceiling_date(ymd(as.Date(paste0(US_MS_A$Date, "-15"))), 'month') - days(1)
+
+#Retrieve Historical Period
+US_MS_A <- US_MS_A %>% 
+  filter(Date >= D_ActualStart & Date < D_ForecastStart)
+
+#Replace NAs with 0s
+US_MS_A[is.na(US_MS_A)] <- 0
+
+#Transform into tibble
+US_MS_A <- as_tibble(US_MS_A)
+
+#Get numerical month and year for each date
+US_MS_A <- US_MS_A %>% 
+  mutate(Date.Month = format(Date, "%m")) %>% 
+  mutate(Date.Year = format(Date, "%Y"))
+
+#Generate daily date timeframe for actuals period
+US_PSU_TF_A <- seq(from = min(as.Date(US_PSU$ds)),
+             to = ceiling_date(max(as.Date(US_PSU$ds)), "month") - days(1),
+             by = "1 days")
+US_PSU_TF_A <- as_tibble(US_PSU_TF_A)
+
+#Get numerical month and year for each date for actuals period timeframe
+US_PSU_TF_A <- US_PSU_TF_A %>% 
+  rename(Date = value) %>%
+  mutate(Date.Month = format(Date, "%m")) %>% 
+  mutate(Date.Year = format(Date, "%Y"))
+
+#Merge the actuals into the daily timeframe
+US_PSU_R_A <- merge(US_PSU_TF_A,US_MS_A,by = c("Date.Month","Date.Year"),all.x = TRUE)
+US_PSU_R_A <- as_tibble(US_PSU_R_A)
+
+#Clean and convert monthly spend to a daily average
+US_PSU_R_A <- US_PSU_R_A %>% 
+  mutate(Date.Day = as.numeric(format(Date.y, "%d"))) %>% 
+  mutate(perMar = Balanced + Payback + Revenue + MAU + Seeding) %>% 
+  mutate(perMar_Daily = perMar / Date.Day) %>% 
+  mutate(Brand_Daily = Brand / Date.Day) %>% 
+  select(Date.x,perMar_Daily,Brand_Daily) %>% 
+  rename(ds = Date.x) %>% 
+  rename(perMar = perMar_Daily) %>% 
+  rename(Brand = Brand_Daily) %>%
+  arrange(ds = as.Date(ds, "%d-%m-%Y"))
+
+############ Regressor: Marketing Spend (Forecast)
+
+#Get numerical month and year for each date for forecast period timeframe
+US_PSU_TF_F <- seq(from = min(as.Date(D_ForecastStart)),
+                     to = ceiling_date(max(as.Date(D_ForecastEnd)), "month") - days(1),
+                     by = "1 days")
+US_PSU_TF_F <- as_tibble(US_PSU_TF_F)
+US_PSU_TF_F <- US_PSU_TF_F %>%
+  rename(ds = value) 
+
+#Tidy and reformat forecast data 
+US_MS_F <- US_MS_F %>% 
+  select(Tactic,Mar.2025,Apr.2025,May.2025,Jun.2025,Jul.2025,Aug.2025,Sep.2025,Oct.2025,Nov.2025,Dec.2025) %>%
+  group_by(Tactic) %>%
+  filter(Tactic %in% c("Seeding", "MAU", "Ad Serving")) %>%
+  summarise(Mar.2025 = sum(Mar.2025), Apr.2025 = sum(Apr.2025), May.2025 = sum(May.2025), 
+            Jun.2025 = sum(Jun.2025), Jul.2025 = sum(Jul.2025), Aug.2025 = sum(Aug.2025), 
+            Sep.2025 = sum(Sep.2025), Oct.2025 = sum(Oct.2025), Nov.2025 = sum(Nov.2025), 
+            Dec.2025 = sum(Dec.2025))
+
+#Transpose
+US_MS_F <- transpose_df(US_MS_F)
+
+#Rename column names
+colnames(US_MS_F) <- c("Mon.Year","Brand","MAU","Seeding")
+
+#Formatting into numerical 
+US_MS_F$Brand <- as.numeric(US_MS_F$Brand)
+US_MS_F$MAU <- as.numeric(US_MS_F$MAU)
+US_MS_F$Seeding <- as.numeric(US_MS_F$Seeding)
+
+#Clean forecast monthly values
+US_MS_F <- US_MS_F %>% 
+  filter(Mon.Year!="Tactic") %>% 
+  mutate(Date.Year = "2025") %>% 
+  mutate(Date.Month = rep(3:12,1)) %>% 
+  mutate(perMar = MAU + Seeding) %>% 
+  select(Date.Month,Date.Year,perMar,Brand)
+
+#Get numerical month and year for each date for forecast period timeframe
+US_PSU_TF_F <- US_PSU_TF_F %>% 
+  mutate(Date.Month = month(ds)) %>% 
+  mutate(Date.Year = year(ds))
+
+#Merge the forecast into the daily timeframe
+US_PSU_R_F <- merge(US_PSU_TF_F,US_MS_F,by = c("Date.Month"="Date.Month","Date.Year"="Date.Year"),all.x = TRUE)
+
+#Clean and convert monthly spend to a daily average
+US_PSU_R_F <- US_PSU_R_F %>% 
+  mutate(Date.Day=day(ceiling_date(ds, 'month') - days(1))) %>% 
+  mutate(perMar_Daily = perMar/Date.Day) %>%
+  mutate(Brand_Daily = Brand/Date.Day) %>%
+  select(ds,perMar_Daily,Brand_Daily) %>%
+  rename(perMar = perMar_Daily) %>%
+  rename(Brand = Brand_Daily) %>%
+  arrange(ds = as.Date(ds, "%d-%m-%Y"))
+
+#Merge actuals and forecast values
+US_PSU_R <- rbind(US_PSU_R_A,US_PSU_R_F)
+
+#Replace NAs with 0
+US_PSU_R <- US_PSU_R %>% 
+  mutate(perMar = ifelse(is.na(perMar), 0, perMar)) %>% 
+  mutate(Brand = ifelse(is.na(Brand), 0, Brand))
+  
+############ Regressor: Public Holidays (Actuals & Forecast)
+
+#Format to date
+Holidays$ds <- as.Date(Holidays$ds, format = "%m/%d/%Y")
+
+#Filter out NAs 
+Holidays <- Holidays %>% 
+  filter(!is.na(country)) 
+
+#Filter for US Relevant Holidays
+US_Holidays <- Holidays %>%
+  filter(country=="US") #%>% 
+#  filter(holiday %in% c("Thanksgiving", "Good Friday", "Easter Monday","New Year's Day","Christmas Day"))
+
+#US_Holidays_Full <- Holidays %>% filter(country=="US")
+#unique(US_Holidays_Full$holiday)
+
+############ Regressor: Campaign Dates (Actuals & Forecast)
+
+US_PSU_R <- US_PSU_R %>% 
+  mutate(Campaigns = canva_create(US_PSU_R$ds))
+
+sum(US_PSU_R$Campaigns)
+
+############ Regressor: Country Manager (Actuals & Forecast)
+
+D_CountryManager <- "2020-01-01"
+
+US_PSU_R <- US_PSU_R %>% 
+  mutate(CountryMGR = ifelse(ds >= D_CountryManager, 1, 0)) 
+
+# Forecasting: US_PSU (X: t) ----------------------------------------------
+
+#Fitting the Model via Prophet
+M1_US_PSU <- prophet(US_PSU, 
+                     changepoint.prior.scale = 0.01, 
+                     n.changepoints = 17, #Training periods
+                     daily.seasonality = FALSE,
+                     weekly.seasonality = FALSE,
+                     yearly.seasonality = TRUE,
+                     changepoint.range = 3*12/(3*12+2), #Train until Dec-24 with 2 periods of testing 
+                     seasonality.mode = 'additive')
+
+#Creating a suitable dataframe for future predictions
+M1_TF <- make_future_dataframe(M1_US_PSU, periods = 365-28-31)
+
+#Performing the forecast
+M1_US_PSU_F <- predict(M1_US_PSU, M1_TF)
+
+#Plotting Forecast 
+plot(M1_US_PSU, M1_US_PSU_F,
+     xlab="Year", 
+     ylab="Paid Sign Ups") 
+
+#Plotting Components 
+prophet_plot_components(M1_US_PSU, M1_US_PSU_F)
+
+# Forecasting: US_PSU (X: t, Holidays) ------------------------------------------
+
+#Create model
+M2_US_PSU <- prophet(changepoint.range = 3*12/(3*12+2), 
+                     holidays = US_Holidays,
+                     daily.seasonality = FALSE,
+                     weekly.seasonality = TRUE,
+                     yearly.seasonality = TRUE)
+#M2_US_PSU <- add_country_holidays(M2_US_PSU, country_name = 'US')
+#M2_US_PSU <- add_regressor(M2_US_PSU, 'perMar')
+#M2_US_PSU <- add_regressor(M2_US_PSU, 'Brand')
+#M2_US_PSU <- add_regressor(M2_US_PSU, 'Campaigns')
+#M2_US_PSU <- add_regressor(M2_US_PSU, 'CountryMGR')
+US_PSU_Train <- merge(US_PSU_R,US_PSU,by="ds",all.x = TRUE)
+M2_US_PSU <- fit.prophet(M2_US_PSU, US_PSU_Train)
+
+#Performing the forecast
+M2_US_PSU_F <- predict(M2_US_PSU, US_PSU_R) 
+
+#Plotting Forecast
+plot(M2_US_PSU, M2_US_PSU_F, 
+     xlab="Year", 
+     ylab="Paid Sign Ups") 
+
+#Plotting Components 
+prophet_plot_components(M2_US_PSU, M2_US_PSU_F)
+
+# Forecasting: US_PSU (X: t, Holidays, MS) ------------------------------------------
+
+#Create model
+M3_US_PSU <- prophet(changepoint.range = 3*12/(3*12+2), 
+                     holidays = US_Holidays,
+                     daily.seasonality = FALSE,
+                     weekly.seasonality = TRUE,
+                     yearly.seasonality = TRUE)
+#M3_US_PSU <- add_country_holidays(M3_US_PSU, country_name = 'US')
+M3_US_PSU <- add_regressor(M3_US_PSU, 'perMar')
+#M3_US_PSU <- add_regressor(M3_US_PSU, 'Brand')
+#M3_US_PSU <- add_regressor(M3_US_PSU, 'Campaigns')
+#M3_US_PSU <- add_regressor(M3_US_PSU, 'CountryMGR')
+US_PSU_Train <- merge(US_PSU_R,US_PSU,by="ds",all.x = TRUE)
+M3_US_PSU <- fit.prophet(M3_US_PSU, US_PSU_Train)
+
+#Performing the forecast
+M3_US_PSU_F <- predict(M3_US_PSU, US_PSU_R) 
+
+#Plotting Forecast
+plot(M3_US_PSU, M3_US_PSU_F, 
+     xlab="Year", 
+     ylab="Paid Sign Ups") 
+
+#Plotting Components 
+prophet_plot_components(M3_US_PSU, M3_US_PSU_F)
+
+
+# Regression Metrics ------------------------------------------------------
+
+#US PSU (X=t)
+M1_US_PSU_CV = cross_validation(
+  model = M1_US_PSU,
+  units = "days",
+  horizon = 270,
+  period = 30)
+M1_US_PSU_PM = performance_metrics(M1_US_PSU_CV)
+
+#US PSU (X=t,Holidays)
+M2_US_PSU_CV = cross_validation(
+  model = M2_US_PSU,
+  units = "days",
+  horizon = 270,
+  period = 30)
+M2_US_PSU_PM = performance_metrics(M2_US_PSU_CV)
+
+#US PSU (X=t,Holidays,MS)
+M3_US_PSU_CV = cross_validation(
+  model = M3_US_PSU,
+  units = "days",
+  horizon = 270,
+  period = 30)
+M3_US_PSU_PM = performance_metrics(M3_US_PSU_CV)
+
+# Outputs -----------------------------------------------------------------
+
+#Order dates
+US_PSU <- US_PSU[order(as.Date(US_PSU$ds, format="%d/%m/%Y")),]
+
+#Output Tabs Lists
+Metrics_PM_US <- list('US_PSU_M1'=M1_US_PSU_PM,'US_PSU_M2'=M2_US_PSU_PM,'US_PSU_M3'=M3_US_PSU_PM)
+All_PM_US <- list('Actual_US_PSU'=US_PSU,'Forecast_US_PSU_M1'=M1_US_PSU_F,'Forecast_US_PSU_M2'=M2_US_PSU_F,'Forecast_US_PSU_M3'=M3_US_PSU_F,
+                  'Metrics_US_PSU_M1'=M1_US_PSU_PM,'Metrics_US_PSU_M2'=M2_US_PSU_PM,'Metrics_US_PSU_M3'=M3_US_PSU_PM)
+
+#Output as CSV
+#write.xlsx(Metrics_PM_US, file = paste0(output_directory, as.character(Today_Text), "_", "Metrics_US_PSU",".xlsx"))
+write.xlsx(All_PM_US, file = paste0(output_directory, as.character(Today_Text), "_", "CollatedOutputs_US_PSU",".xlsx"))
