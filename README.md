@@ -92,11 +92,11 @@ Platform:
 
 ### 4) `[aspect]` 
 
-- MS: Marketing spend (regressors) 
-- F: Forecast
-- TF: Timeframe
-- CV: Cross validation
-- PM: Performance metrics
+- `MS`: Marketing spend (regressors) 
+- `F`: Forecast
+- `TF`: Timeframe
+- `CV`: Cross validation
+- `PM`: Performance metrics
 
 ### 5) `[A/F]`
 - `A`: Actuals
