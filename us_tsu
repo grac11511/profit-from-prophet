@@ -77,12 +77,26 @@ transpose_df <- function(df) {
   return(t_df)
 }
 
+
+# Toggles -----------------------------------------------------------------
+
+T_Training2024 <- 0
+
 # Input & Data set Imports ------------------------------------------------
 
 #Important Dates
-D_ForecastStart <- "2025-03-01"
-D_ForecastEnd <- "2025-12-31"
-D_ActualStart <- "2022-01-01"
+if (T_Training2024 == 1) {
+  D_ForecastStart <- as.Date("2025-03-01")
+  D_ForecastEnd <- as.Date("2025-12-31")
+  D_ActualStart <- as.Date("2022-01-01")
+  Training_Period <- 3*12/(3*12+2)
+} else {
+  D_ForecastStart <- as.Date("2024-01-01")
+  D_ForecastEnd <- as.Date("2024-12-31")
+  D_ActualStart <- as.Date("2022-01-01")
+  Training_Period <- 0.95
+}
+
 Today <- now()
 Today_Text <- format(Today, "%Y.%m.%d")
 
@@ -106,6 +120,8 @@ US_MS_A_2 <- fread(file=paste0(input_directory, "2025.03.06_Looker_All_MS_2022_N
                  check.names = TRUE)
 US_MS_F <- fread(file=paste0(input_directory, "2025.03.06_MS_2025", ".csv"), 
                           check.names = TRUE)
+US_MS_A <- fread(file=paste0(input_directory, "2025.03.19 Looker_MS_US_A", ".csv"), 
+                 check.names = TRUE)
 
 # Cleaning & Transformation -----------------------------------------------
 
@@ -113,7 +129,11 @@ US_MS_F <- fread(file=paste0(input_directory, "2025.03.06_MS_2025", ".csv"),
 
 #Format the Date
 TSU$Date <- as.Date(TSU$Date, format="%m/%d/%Y")
+TSU <- TSU %>% 
+  filter(Date >= D_ActualStart) %>% 
+  filter(Date <= D_ForecastStart-1)
 
+#Filter for the US
 US_TSU_DS <- TSU %>% 
   filter(MAP_STRATEGY_REGION == "United States of America") %>% 
   rename(ds = Date) %>% 
@@ -365,6 +385,12 @@ D_CountryManager <- "2020-01-01"
 US_TSU_R <- US_TSU_R %>% 
   mutate(CountryMGR = ifelse(ds >= D_CountryManager, 1, 0)) 
 
+############ Regressor: Weekend
+
+US_TSU_R <- US_TSU_R %>% 
+  mutate(Weekend = ifelse(wday(ds) %in% c(1,7), 1, 0))
+
+
 # Forecasting: M1_R0_US_TSU (X: t) ----------------------------------------------
 
 #Fitting the Model via Prophet
@@ -374,7 +400,7 @@ M1_R0_US_TSU <- prophet(US_TSU,
                      daily.seasonality = FALSE,
                      weekly.seasonality = FALSE,
                      yearly.seasonality = TRUE,
-                     changepoint.range = 3*12/(3*12+2), #Train until Dec-24 with 2 periods of testing 
+                     changepoint.range = Training_Period, #Train until Dec-24 with 2 periods of testing 
                      seasonality.mode = 'additive')
 
 #Creating a suitable dataframe for future predictions
@@ -394,16 +420,12 @@ prophet_plot_components(M1_R0_US_TSU, M1_R0_US_TSU_F)
 # Forecasting: M1_R1_US_TSU (X: t, Holidays) ------------------------------------------
 
 #Create model
-M1_R1_US_TSU <- prophet(changepoint.range = 3*12/(3*12+2), 
+M1_R1_US_TSU <- prophet(changepoint.range = Training_Period, 
                      holidays = US_Holidays,
                      daily.seasonality = FALSE,
                      weekly.seasonality = TRUE,
                      yearly.seasonality = TRUE)
-#M1_R1_US_TSU <- add_country_holidays(M1_R1_US_TSU, country_name = 'US')
-#M1_R1_US_TSU <- add_regressor(M1_R1_US_TSU, 'perMar')
-#M1_R1_US_TSU <- add_regressor(M1_R1_US_TSU, 'Brand')
-#M1_R1_US_TSU <- add_regressor(M1_R1_US_TSU, 'Campaigns')
-#M1_R1_US_TSU <- add_regressor(M1_R1_US_TSU, 'CountryMGR')
+
 US_TSU_Train <- merge(US_TSU_R,US_TSU,by="ds",all.x = TRUE)
 M1_R1_US_TSU <- fit.prophet(M1_R1_US_TSU, US_TSU_Train)
 
@@ -413,7 +435,7 @@ M1_R1_US_TSU_F <- predict(M1_R1_US_TSU, US_TSU_R)
 #Plotting Forecast
 plot(M1_R1_US_TSU, M1_R1_US_TSU_F, 
      xlab="Year", 
-     ylab="Sign Ups") 
+     ylab="Sign Ups")
 
 #Plotting Components 
 prophet_plot_components(M1_R1_US_TSU, M1_R1_US_TSU_F)
@@ -421,7 +443,7 @@ prophet_plot_components(M1_R1_US_TSU, M1_R1_US_TSU_F)
 # Forecasting: M1_R2_US_TSU (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M1_R2_US_TSU <- prophet(changepoint.range = 3*12/(3*12+2), 
+M1_R2_US_TSU <- prophet(changepoint.range = Training_Period, 
                      holidays = US_Holidays,
                      daily.seasonality = FALSE,
                      weekly.seasonality = TRUE,
@@ -449,7 +471,7 @@ prophet_plot_components(M1_R2_US_TSU, M1_R2_US_TSU_F)
 # Forecasting: M1_R2_US_TSU_M (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M1_R2_US_TSU_M <- prophet(changepoint.range = 3*12/(3*12+2), 
+M1_R2_US_TSU_M <- prophet(changepoint.range = Training_Period, 
                         holidays = US_Holidays,
                         daily.seasonality = FALSE,
                         weekly.seasonality = TRUE,
@@ -477,7 +499,7 @@ prophet_plot_components(M1_R2_US_TSU_M, M1_R2_US_TSU_M_F)
 # Forecasting: M2_R1_US_EDU (X: t, Holidays) ------------------------------------------
 
 #Create model
-M2_R1_US_EDU <- prophet(changepoint.range = 3*12/(3*12+2), 
+M2_R1_US_EDU <- prophet(changepoint.range = Training_Period, 
                         holidays = US_Holidays,
                         daily.seasonality = FALSE,
                         weekly.seasonality = TRUE,
@@ -503,7 +525,7 @@ prophet_plot_components(M2_R1_US_EDU, M2_R1_US_EDU_F)
 # Forecasting: M2_R1_US_EDU_M (X: t, Holidays) ------------------------------------------
 
 #Create model
-M2_R1_US_EDU_M <- prophet(changepoint.range = 3*12/(3*12+2), 
+M2_R1_US_EDU_M <- prophet(changepoint.range = Training_Period, 
                         holidays = US_Holidays,
                         daily.seasonality = FALSE,
                         weekly.seasonality = TRUE,
@@ -530,7 +552,7 @@ prophet_plot_components(M2_R1_US_EDU_M, M2_R1_US_EDU_M_F)
 # Forecasting: M2_R2_US_EDU (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M2_R2_US_EDU <- prophet(changepoint.range = 3*12/(3*12+2), 
+M2_R2_US_EDU <- prophet(changepoint.range = Training_Period, 
                      holidays = US_Holidays,
                      daily.seasonality = FALSE,
                      weekly.seasonality = TRUE,
@@ -561,7 +583,7 @@ prophet_plot_components(M2_R2_US_EDU, M2_R2_US_EDU_F)
 # Forecasting: M2_R2_US_EDU_M (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M2_R2_US_EDU_M <- prophet(changepoint.range = 3*12/(3*12+2), 
+M2_R2_US_EDU_M <- prophet(changepoint.range = Training_Period, 
                         holidays = US_Holidays,
                         daily.seasonality = FALSE,
                         weekly.seasonality = TRUE,
@@ -593,7 +615,7 @@ prophet_plot_components(M2_R2_US_EDU_M, M2_R2_US_EDU_M_F)
 # Forecasting: M3_R1_US_B2C (X: t, Holidays) ------------------------------------------
 
 #Create model
-M3_R1_US_B2C <- prophet(changepoint.range = 3*12/(3*12+2), 
+M3_R1_US_B2C <- prophet(changepoint.range = Training_Period, 
                         holidays = US_Holidays,
                         daily.seasonality = FALSE,
                         weekly.seasonality = TRUE,
@@ -615,7 +637,7 @@ prophet_plot_components(M3_R1_US_B2C, M3_R1_US_B2C_F)
 # Forecasting: M3_R2_US_B2C (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M3_R2_US_B2C <- prophet(changepoint.range = 3*12/(3*12+2), 
+M3_R2_US_B2C <- prophet(changepoint.range = Training_Period, 
                      holidays = US_Holidays,
                      daily.seasonality = FALSE,
                      weekly.seasonality = TRUE,
@@ -642,7 +664,7 @@ prophet_plot_components(M3_R2_US_B2C, M3_R2_US_B2C_F)
 # Forecasting: M4_R1_US_B2B (X: t, Holidays) ------------------------------------------
 
 #Create model
-M4_R1_US_B2B <- prophet(changepoint.range = 3*12/(3*12+2), 
+M4_R1_US_B2B <- prophet(changepoint.range = Training_Period, 
                         holidays = US_Holidays,
                         daily.seasonality = FALSE,
                         weekly.seasonality = TRUE,
@@ -669,7 +691,7 @@ prophet_plot_components(M4_R1_US_B2B, M4_R1_US_B2B_F)
 # Forecasting: M4_R2_US_B2B (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M4_R2_US_B2B <- prophet(changepoint.range = 3*12/(3*12+2), 
+M4_R2_US_B2B <- prophet(changepoint.range = Training_Period, 
                      holidays = US_Holidays,
                      daily.seasonality = FALSE,
                      weekly.seasonality = TRUE,
@@ -700,7 +722,7 @@ prophet_plot_components(M4_R2_US_B2B, M4_R2_US_B2B_F)
 # Forecasting: M8_R2_US_B2C_DIR (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M8_R2_US_B2C_DIR <- prophet(changepoint.range = 3*12/(3*12+2), 
+M8_R2_US_B2C_DIR <- prophet(changepoint.range = Training_Period, 
                           holidays = US_Holidays,
                           daily.seasonality = FALSE,
                           weekly.seasonality = TRUE,
@@ -731,7 +753,7 @@ prophet_plot_components(M8_R2_US_B2C_DIR, M8_R2_US_B2C_DIR_F)
 # Forecasting: M8_R3_US_B2C_DIR (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M8_R3_US_B2C_DIR <- prophet(changepoint.range = 3*12/(3*12+2), 
+M8_R3_US_B2C_DIR <- prophet(changepoint.range = Training_Period, 
                             holidays = US_Holidays,
                             daily.seasonality = FALSE,
                             weekly.seasonality = TRUE,
@@ -762,7 +784,7 @@ prophet_plot_components(M8_R3_US_B2C_DIR, M8_R3_US_B2C_DIR_F)
 # Forecasting: M9_R2_US_B2C_SEO (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M9_R2_US_B2C_SEO <- prophet(changepoint.range = 3*12/(3*12+2), 
+M9_R2_US_B2C_SEO <- prophet(changepoint.range = Training_Period, 
                           holidays = US_Holidays,
                           daily.seasonality = FALSE,
                           weekly.seasonality = TRUE,
@@ -789,7 +811,7 @@ prophet_plot_components(M9_R2_US_B2C_SEO, M9_R2_US_B2C_SEO_F)
 # Forecasting: M9_R3_US_B2C_SEO (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M9_R3_US_B2C_SEO <- prophet(changepoint.range = 3*12/(3*12+2), 
+M9_R3_US_B2C_SEO <- prophet(changepoint.range = Training_Period, 
                             holidays = US_Holidays,
                             daily.seasonality = FALSE,
                             weekly.seasonality = TRUE,
@@ -816,7 +838,7 @@ prophet_plot_components(M9_R3_US_B2C_SEO, M9_R3_US_B2C_SEO_F)
 # Forecasting: M10_R2_US_B2C_PSU (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M10_R2_US_B2C_PSU <- prophet(changepoint.range = 3*12/(3*12+2), 
+M10_R2_US_B2C_PSU <- prophet(changepoint.range = Training_Period, 
                              holidays = US_Holidays,
                              daily.seasonality = FALSE,
                              weekly.seasonality = TRUE,
@@ -848,7 +870,7 @@ prophet_plot_components(M10_R2_US_B2C_PSU, M10_R2_US_B2C_PSU_F)
 # Forecasting: M10_R3_US_B2C_PSU (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M10_R3_US_B2C_PSU <- prophet(changepoint.range = 3*12/(3*12+2), 
+M10_R3_US_B2C_PSU <- prophet(changepoint.range = Training_Period, 
                              holidays = US_Holidays,
                              daily.seasonality = FALSE,
                              weekly.seasonality = TRUE,
@@ -880,7 +902,7 @@ prophet_plot_components(M10_R3_US_B2C_PSU, M10_R3_US_B2C_PSU_F)
 # Forecasting: M11_R2_US_B2B_DIR (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M11_R2_US_B2B_DIR <- prophet(changepoint.range = 3*12/(3*12+2), 
+M11_R2_US_B2B_DIR <- prophet(changepoint.range = Training_Period, 
                      holidays = US_Holidays,
                      daily.seasonality = FALSE,
                      weekly.seasonality = TRUE,
@@ -911,7 +933,7 @@ prophet_plot_components(M11_R2_US_B2B_DIR, M11_R2_US_B2B_DIR_F)
 # Forecasting: M12_R2_US_B2B_SEO (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M12_R2_US_B2B_SEO <- prophet(changepoint.range = 3*12/(3*12+2), 
+M12_R2_US_B2B_SEO <- prophet(changepoint.range = Training_Period, 
                      holidays = US_Holidays,
                      daily.seasonality = FALSE,
                      weekly.seasonality = TRUE,
@@ -942,7 +964,7 @@ prophet_plot_components(M12_R2_US_B2B_SEO, M12_R2_US_B2B_SEO_F)
 # Forecasting: M13_R2_US_B2B_PSU (X: t, Holidays, MS) ------------------------------------------
 
 #Create model
-M13_R2_US_B2B_PSU <- prophet(changepoint.range = 3*12/(3*12+2), 
+M13_R2_US_B2B_PSU <- prophet(changepoint.range = Training_Period, 
                              holidays = US_Holidays,
                              daily.seasonality = FALSE,
                              weekly.seasonality = TRUE,
@@ -1057,8 +1079,8 @@ All_A <- tibble(US_TSU$ds, US_TSU$y,
 All_A <- All_A %>% 
   rename(ds = `US_TSU$ds`) %>% 
   filter(ds >= D_ActualStart)
-
-All_F <- tibble(M1_R0_US_TSU_F$ds,M1_R0_US_TSU_F$yhat,M1_R1_US_TSU_F$yhat,M1_R2_US_TSU_F$yhat,M1_R2_US_TSU_M_F$yhat, #Total
+nrow(M1_R0_US_TSU_F$ds)
+All_F <- tibble(M1_R1_US_TSU_F$ds,M1_R1_US_TSU_F$yhat,M1_R2_US_TSU_F$yhat,M1_R2_US_TSU_M_F$yhat, #Total
                 M2_R1_US_EDU_F$yhat,M2_R2_US_EDU_F$yhat,M2_R1_US_EDU_M_F$yhat,M2_R2_US_EDU_M_F$yhat, #Edu
                 M3_R1_US_B2C_F$yhat,M3_R2_US_B2C_F$yhat, #B2C
                 M4_R1_US_B2B_F$yhat,M4_R2_US_B2B_F$yhat, #B2B
@@ -1067,7 +1089,7 @@ All_F <- tibble(M1_R0_US_TSU_F$ds,M1_R0_US_TSU_F$yhat,M1_R1_US_TSU_F$yhat,M1_R2_
                 M10_R2_US_B2C_PSU_F$yhat,M10_R3_US_B2C_PSU_F$yhat, #B2C Paid
                 M11_R2_US_B2B_DIR_F$yhat,M12_R2_US_B2B_SEO_F$yhat,M13_R2_US_B2B_PSU_F$yhat) #B2B
 All_F <- All_F %>% 
-  rename(ds = `M1_R0_US_TSU_F$ds`) %>% 
+  rename(ds = `M1_R1_US_TSU_F$ds`) %>% 
   filter(ds >= D_ActualStart)
 
 #Output Tabs Lists
