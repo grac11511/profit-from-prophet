@@ -48,6 +48,9 @@ library(openxlsx)
 
 # Functions ---------------------------------------------------------------
 
+#Start timer
+All_start <- Sys.time()
+
 #Creating an alternative future function
 last_day <- function(date) {
   lubridate::ceiling_date(date, "month") - days(1)
@@ -80,7 +83,7 @@ transpose_df <- function(df) {
 
 # Toggles -----------------------------------------------------------------
 
-T_Training2022_2024 <- 0
+T_Training2022_2024 <- 1
 T_WeeklyMS <- 1 
 
 # Input & Data set Imports ------------------------------------------------
@@ -89,8 +92,8 @@ Training_Period <- 1
 
 #Important Dates
 if (T_Training2022_2024 == 1) {
-  D_ForecastStart <- as.Date("2025-03-01")
-  D_ForecastEnd <- as.Date("2025-12-31")
+  D_ForecastStart <- as.Date("2025-01-01")
+  D_ForecastEnd <- as.Date("2025-02-28")
   D_ActualStart <- as.Date("2022-01-01")
 } else {
   D_ForecastStart <- as.Date("2024-01-01")
@@ -502,7 +505,8 @@ if (T_WeeklyMS == 1) {
 
 # Forecasting: M1_R0_US_TSU (X: t) ----------------------------------------------
 
-PM_start <- Sys.time()
+#Start timer
+F_start <- Sys.time()
 
 #Fitting the Model via Prophet
 M1_R0_US_TSU <- prophet(US_TSU, 
@@ -1149,6 +1153,9 @@ prophet_plot_components(M26_R4_US_EDU_ORG_AND, M26_R4_US_EDU_ORG_AND_F)
 
 # Model List --------------------------------------------------------------
 
+#End timer
+F_end <- Sys.time() - F_start
+
 #Create Model List 
 M_names <- c("M1_R1_US_TSU", "M1_R2_US_TSU", "M1_R3_US_TSU", "M1_R32_US_TSU", 
              "M1_R32_US_TSU_FO1", "M1_R32_US_TSU_FO2", "M1_R32_US_TSU_FO3", 
@@ -1162,6 +1169,7 @@ M_names <- c("M1_R1_US_TSU", "M1_R2_US_TSU", "M1_R3_US_TSU", "M1_R32_US_TSU",
 
 # Regression Metrics ------------------------------------------------------
 
+#Start timer
 PM_start <- Sys.time()
 
 #For Loop to calculate metrics for each model 
@@ -1203,10 +1211,12 @@ for (ape_name in ape_names[-1]) {
 All_APE <- All_APE %>% 
   arrange(factor(Metric, levels = c('mape','mdape','smape','mae')))
 
-print( Sys.time() - PM_start)
+#End timer
+PM_end <- Sys.time() - PM_start
 
 # Coefficients ------------------------------------------------------------
 
+#Start timer
 Co_start <- Sys.time()
 
 #For Loop to retrieve coefficients for every model 
@@ -1237,7 +1247,8 @@ for (i in 2:length(Co_names)) {
 All_Co <- All_Co %>% 
   arrange(factor(Regressor, levels = c('Intercept','perMar','Campaigns','Brand','additive_terms','extra_regressors_additive','multiplicative_terms','weekly','yearly')))
 
-print( Sys.time() - Co_start)
+#End timer
+Co_end <- Sys.time() - Co_start
 
 # Outputs -----------------------------------------------------------------
 
@@ -1274,6 +1285,15 @@ All_US_TSU <- list('All_A'=All_A,'All_F'=All_F,'All_Co'=All_Co,'All_APE'=All_APE
 #Output as CSV
 write.xlsx(All_US_TSU, file = paste0(output_directory, as.character(Today_Text), "_", "Outputs_US_TSU",".xlsx"))
 
+#End timer
+All_end <- Sys.time() - All_start
+
+#Time taken
+F_end
+PM_end
+Co_end
+All_end
+
 # Extract for MAU Model ---------------------------------------------------
 
 #Format Actuals into Extract for MAU Model 
@@ -1289,7 +1309,10 @@ Extract_A <- SU %>%
   summarise(Signups = sum(Signups)) %>% 
   rename(Date = EOM) %>%
   filter(Date >= D_ActualStart) %>% 
-  mutate(Scenario = "Incl Marketing")
+  mutate(Scenario = "Incl Marketing") 
+
+#Use MAU model terms 
+Extract_A$Platform <- gsub("Web", "web", Extract_A$Platform)
 
 #Checks
 sum(SU$SIGNUPS)
