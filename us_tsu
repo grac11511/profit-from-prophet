@@ -109,7 +109,7 @@ input_directory <- "/Users/grac/Documents/Regression Models/Inputs/"
 output_directory <- "/Users/grac/Documents/Regression Models/Outputs/"
 
 #Import Data sets
-TSU <- fread(file=paste0(input_directory, "2025.03.12 Signups", ".csv"), 
+SU <- fread(file=paste0(input_directory, "2025.03.12 Signups", ".csv"), 
              check.names = TRUE)
 Holidays <- fread(file=paste0(input_directory, "collated_holidays", ".csv"), 
                   check.names = TRUE)
@@ -128,100 +128,157 @@ US_MS_AF_W <- fread(file=paste0(input_directory, "2025.03.19 Looker_MS_US_A", ".
 
 ############ y: Paid Sign-Ups
 
-#Format the Date
-TSU$Date <- as.Date(TSU$Date, format="%m/%d/%Y")
-TSU <- TSU %>% 
-  filter(Date >= D_ActualStart) %>% 
-  filter(Date <= D_ForecastStart-1)
+SU$Date <- as.Date(SU$Date, format="%m/%d/%Y")
 
-#Filter for the US
-US_TSU_DS <- TSU %>% 
+#Filtering for relevant dates (2022-2025)
+SU_A <- SU %>% 
+  filter(Date >= D_ActualStart)
+
+#Filtering for US
+US_SU_A <- SU_A %>% 
   filter(MAP_STRATEGY_REGION == "United States of America") %>% 
   rename(ds = Date) %>% 
   rename(y = SIGNUPS)
 
-#Filtering for US Total Signups 
-US_TSU <- US_TSU_DS %>%
+#Filtering for dimensions 
+US_TSU_A <- US_SU_A %>%
   select(ds, y) %>% 
   group_by(ds) %>% 
   summarise(y = sum(y)) %>% arrange(ds)
 
-#Filtering for US Edu Signups
-US_EDU <- US_TSU_DS %>% 
+US_EDU_A <- US_SU_A %>% 
   filter(MAP_CUSTOMER_TYPE == "Edu") %>%
   select(ds, y) %>% 
   group_by(ds) %>% 
   summarise(y = sum(y)) %>% arrange(ds)
 
-#Filtering for US B2C Signups 
-US_B2C <- US_TSU_DS %>% 
+US_EDU_ORG_A <- US_SU_A %>% 
+  filter(MAP_CUSTOMER_TYPE == "Edu") %>%
+  filter(MAP_SIGNUP_SOURCE %in% c("direct","SEO")) %>%
+  select(ds, y) %>% 
+  group_by(ds) %>% 
+  summarise(y = sum(y)) %>% arrange(ds)
+
+US_EDU_ORG_WEB_A <- US_SU_A %>% 
+  filter(MAP_CUSTOMER_TYPE == "Edu") %>%
+  filter(MAP_SIGNUP_SOURCE %in% c("direct","SEO")) %>%
+  filter(MAP_PLATFORM == "Web") %>% 
+  select(ds, y) %>% 
+  group_by(ds) %>% 
+  summarise(y = sum(y)) %>% arrange(ds)
+
+US_EDU_ORG_IOS_A <- US_SU_A %>% 
+  filter(MAP_CUSTOMER_TYPE == "Edu") %>%
+  filter(MAP_SIGNUP_SOURCE %in% c("direct","SEO")) %>%
+  filter(MAP_PLATFORM == "iOS") %>% 
+  select(ds, y) %>% 
+  group_by(ds) %>% 
+  summarise(y = sum(y)) %>% arrange(ds)
+
+US_EDU_ORG_AND_A <- US_SU_A %>% 
+  filter(MAP_CUSTOMER_TYPE == "Edu") %>%
+  filter(MAP_SIGNUP_SOURCE %in% c("direct","SEO")) %>%
+  filter(MAP_PLATFORM == "Android") %>% 
+  select(ds, y) %>% 
+  group_by(ds) %>% 
+  summarise(y = sum(y)) %>% arrange(ds)
+
+US_B2C_A <- US_SU_A %>% 
   filter(MAP_CUSTOMER_TYPE == "B2C") %>%
   select(ds, y) %>% 
   group_by(ds) %>% 
   summarise(y = sum(y)) %>% arrange(ds)
 
-#Filtering for US B2B Signups 
-US_B2B <- US_TSU_DS %>% 
+US_B2B_A <- US_SU_A %>% 
   filter(MAP_CUSTOMER_TYPE == "B2B") %>%
   select(ds, y) %>% 
   group_by(ds) %>% 
   summarise(y = sum(y)) %>% arrange(ds)
 
-#Filtering for US B2C Direct Signups 
-US_B2C_DIR <- US_TSU_DS %>% 
+US_B2C_DIR_A <- US_SU_A %>% 
   filter(MAP_CUSTOMER_TYPE == "B2C") %>%
   filter(MAP_SIGNUP_SOURCE == "direct") %>%
   select(ds, y) %>% 
   group_by(ds) %>% 
   summarise(y = sum(y)) %>% arrange(ds)
 
-#Filtering for US B2C SEO Signups 
-US_B2C_SEO <- US_TSU_DS %>% 
+US_B2C_SEO_A <- US_SU_A %>% 
   filter(MAP_CUSTOMER_TYPE == "B2C") %>%
   filter(MAP_SIGNUP_SOURCE == "SEO") %>%
   select(ds, y) %>% 
   group_by(ds) %>% 
   summarise(y = sum(y)) %>% arrange(ds)
 
-#Filtering for US B2C Paid Signups 
-US_B2C_PSU <- US_TSU_DS %>% 
+US_B2C_PSU_A <- US_SU_A %>% 
   filter(MAP_CUSTOMER_TYPE == "B2C") %>%
   filter(MAP_SIGNUP_SOURCE == "paid") %>%
   select(ds, y) %>% 
   group_by(ds) %>% 
   summarise(y = sum(y)) %>% arrange(ds)
 
-#Filtering for US B2B Direct Signups 
-US_B2B_DIR <- US_TSU_DS %>% 
+US_B2B_DIR_A <- US_SU_A %>% 
   filter(MAP_CUSTOMER_TYPE == "B2B") %>%
   filter(MAP_SIGNUP_SOURCE == "direct") %>%
   select(ds, y) %>% 
   group_by(ds) %>% 
   summarise(y = sum(y)) %>% arrange(ds)
 
-#Filtering for US B2B SEO Signups 
-US_B2B_SEO <- US_TSU_DS %>% 
+US_B2B_SEO_A <- US_SU_A %>% 
   filter(MAP_CUSTOMER_TYPE == "B2B") %>%
   filter(MAP_SIGNUP_SOURCE == "SEO") %>%
   select(ds, y) %>% 
   group_by(ds) %>% 
   summarise(y = sum(y)) %>% arrange(ds)
 
-#Filtering for US B2B Paid Signups 
-US_B2B_PSU <- US_TSU_DS %>% 
+US_B2B_PSU_A <- US_SU_A %>% 
   filter(MAP_CUSTOMER_TYPE == "B2B") %>%
   filter(MAP_SIGNUP_SOURCE == "paid") %>%
   select(ds, y) %>% 
   group_by(ds) %>% 
   summarise(y = sum(y)) %>% arrange(ds)
 
-#Filtering for US Edu Organic Signups 
-US_EDU_ORG <- US_TSU_DS %>% 
-  filter(MAP_CUSTOMER_TYPE == "Edu") %>%
-  filter(MAP_SIGNUP_SOURCE == c("direct","SEO")) %>%
-  select(ds, y) %>% 
-  group_by(ds) %>% 
-  summarise(y = sum(y)) %>% arrange(ds)
+#Filtering for Actuals used for Forecasting (2022-2023)
+US_TSU <- US_TSU_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_EDU <- US_EDU_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_EDU_ORG <- US_EDU_ORG_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_EDU_ORG_WEB <- US_EDU_ORG_WEB_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_EDU_ORG_IOS <- US_EDU_ORG_IOS_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_EDU_ORG_AND <- US_EDU_ORG_AND_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_B2C <- US_B2C_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_B2B <- US_B2B_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_B2C_DIR <- US_B2C_DIR_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_B2C_SEO <- US_B2C_SEO_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_B2C_PSU <- US_B2C_PSU_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_B2B_DIR <- US_B2B_DIR_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_B2B_SEO <- US_B2B_SEO_A %>% 
+  filter(ds <= D_ForecastStart-1)
+
+US_B2B_PSU <- US_B2B_PSU_A %>% 
+  filter(ds <= D_ForecastStart-1)
 
 ############ Regressor: Marketing Spend (Actuals)
 
@@ -418,7 +475,7 @@ US_MS_AF_W <- US_MS_AF_W %>%
   rename(ds = Source)
 
 #Format to standard 
-US_MS_AF_W$ds <- as.Date(US_MS_AF_W$ds, format="%Y-%m-%d")
+US_MS_AF_W$ds <- as.Date(US_MS_AF_W$ds, format="%m/%d/%Y")
 US_MS_AF_W$Brand <- as.numeric(mgsub::mgsub(US_MS_AF_W$Brand, c("[\\,]","[\\$]"), c("","")))
 US_MS_AF_W$perMar <- as.numeric(mgsub::mgsub(US_MS_AF_W$perMar, c("[\\,]","[\\$]"), c("","")))
 US_MS_AF_W <- as_tibble(US_MS_AF_W)
@@ -818,252 +875,18 @@ plot(M1_R4_US_TSU_M, M1_R4_US_TSU_M_F,
 #Plotting Components 
 prophet_plot_components(M1_R4_US_TSU_M, M1_R4_US_TSU_M_F)
 
-# Forecasting: M2_R4_US_EDU (X: t, Holidays, perMar, Brand, Campaigns) ------------------------------------------
-
-#Create model
-M2_R4_US_EDU <- prophet(changepoint.range = Training_Period, 
-                        holidays = US_Holidays,
-                        daily.seasonality = FALSE,
-                        weekly.seasonality = TRUE,
-                        yearly.seasonality = TRUE)
-#M2_R4_US_EDU <- add_country_holidays(M2_R4_US_EDU, country_name = 'US')
-M2_R4_US_EDU <- add_regressor(M2_R4_US_EDU, 'perMar')
-M2_R4_US_EDU <- add_regressor(M2_R4_US_EDU, 'Brand')
-M2_R4_US_EDU <- add_regressor(M2_R4_US_EDU, 'Campaigns')
-#M2_R4_US_EDU <- add_regressor(M2_R4_US_EDU, 'CountryMGR')
-US_TSU_Train <- merge(US_TSU_R,US_EDU,by="ds",all.x = TRUE)
-M2_R4_US_EDU <- fit.prophet(M2_R4_US_EDU, US_TSU_Train)
-
-#Performing the forecast
-M2_R4_US_EDU_F <- predict(M2_R4_US_EDU, US_TSU_R) 
-
-#Make negative values = 0 
-M2_R4_US_EDU_F <- M2_R4_US_EDU_F %>% 
-  mutate(yhat = if_else(yhat < 0,0,yhat))
-
-#Plotting Forecast
-plot(M2_R4_US_EDU, M2_R4_US_EDU_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M2_R4_US_EDU, M2_R4_US_EDU_F)
-
-# Forecasting: M2_R4_US_EDU_M (X: t, Holidays, perMar, Brand, Campaigns) ------------------------------------------
-
-#Create model
-M2_R4_US_EDU_M <- prophet(changepoint.range = Training_Period, 
-                        holidays = US_Holidays,
-                        daily.seasonality = FALSE,
-                        weekly.seasonality = TRUE,
-                        yearly.seasonality = TRUE,
-                        seasonality.mode = 'multiplicative')
-#M2_R4_US_EDU_M <- add_country_holidays(M2_R4_US_EDU_M, country_name = 'US')
-M2_R4_US_EDU_M <- add_regressor(M2_R4_US_EDU_M, 'perMar')
-M2_R4_US_EDU_M <- add_regressor(M2_R4_US_EDU_M, 'Brand')
-M2_R4_US_EDU_M <- add_regressor(M2_R4_US_EDU_M, 'Campaigns')
-#M2_R4_US_EDU_M <- add_regressor(M2_R4_US_EDU_M, 'CountryMGR')
-US_TSU_Train <- merge(US_TSU_R,US_EDU,by="ds",all.x = TRUE)
-M2_R4_US_EDU_M <- fit.prophet(M2_R4_US_EDU_M, US_TSU_Train)
-
-#Performing the forecast
-M2_R4_US_EDU_M_F <- predict(M2_R4_US_EDU_M, US_TSU_R) 
-
-#Make negative values = 0 
-M2_R4_US_EDU_M_F <- M2_R4_US_EDU_M_F %>% 
-  mutate(yhat = if_else(yhat < 0,0,yhat))
-
-#Plotting Forecast
-plot(M2_R4_US_EDU_M, M2_R4_US_EDU_M_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M2_R4_US_EDU_M, M2_R4_US_EDU_M_F)
-
-# Forecasting: M2_R2_US_EDU (X: t, Holidays, perMar) ------------------------------------------
-
-#Create model
-M2_R2_US_EDU <- prophet(changepoint.range = Training_Period, 
-                     holidays = US_Holidays,
-                     daily.seasonality = FALSE,
-                     weekly.seasonality = TRUE,
-                     yearly.seasonality = TRUE)
-#M2_R2_US_EDU <- add_country_holidays(M2_R2_US_EDU, country_name = 'US')
-M2_R2_US_EDU <- add_regressor(M2_R2_US_EDU, 'perMar')
-#M2_R2_US_EDU <- add_regressor(M2_R2_US_EDU, 'Brand')
-#M2_R2_US_EDU <- add_regressor(M2_R2_US_EDU, 'Campaigns')
-#M2_R2_US_EDU <- add_regressor(M2_R2_US_EDU, 'CountryMGR')
-US_EDU_Train <- merge(US_TSU_R,US_EDU,by="ds",all.x = TRUE)
-M2_R2_US_EDU <- fit.prophet(M2_R2_US_EDU, US_EDU_Train)
-
-#Performing the forecast
-M2_R2_US_EDU_F <- predict(M2_R2_US_EDU, US_TSU_R) 
-
-#Make negative values = 0 
-M2_R2_US_EDU_F <- M2_R2_US_EDU_F %>% 
-  mutate(yhat = if_else(yhat < 0,0,yhat))
-
-#Plotting Forecast
-plot(M2_R2_US_EDU, M2_R2_US_EDU_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M2_R2_US_EDU, M2_R2_US_EDU_F)
-
-# Forecasting: M2_R2_US_EDU_M (X: t, Holidays, perMar) ------------------------------------------
-
-#Create model
-M2_R2_US_EDU_M <- prophet(changepoint.range = Training_Period, 
-                        holidays = US_Holidays,
-                        daily.seasonality = FALSE,
-                        weekly.seasonality = TRUE,
-                        yearly.seasonality = TRUE,
-                        seasonality.mode = 'multiplicative')
-#M2_R2_US_EDU_M <- add_country_holidays(M2_R2_US_EDU_M, country_name = 'US')
-M2_R2_US_EDU_M <- add_regressor(M2_R2_US_EDU_M, 'perMar')
-#M2_R2_US_EDU_M <- add_regressor(M2_R2_US_EDU_M, 'Brand')
-#M2_R2_US_EDU_M <- add_regressor(M2_R2_US_EDU_M, 'Campaigns')
-#M2_R2_US_EDU_M <- add_regressor(M2_R2_US_EDU_M, 'CountryMGR')
-US_EDU_Train <- merge(US_TSU_R,US_EDU,by="ds",all.x = TRUE)
-M2_R2_US_EDU_M <- fit.prophet(M2_R2_US_EDU_M, US_EDU_Train)
-
-#Performing the forecast
-M2_R2_US_EDU_M_F <- predict(M2_R2_US_EDU_M, US_TSU_R) 
-
-#Make negative values = 0 
-M2_R2_US_EDU_M_F <- M2_R2_US_EDU_M_F %>% 
-  mutate(yhat = if_else(yhat < 0,0,yhat))
-
-#Plotting Forecast
-plot(M2_R2_US_EDU_M, M2_R2_US_EDU_M_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M2_R2_US_EDU_M, M2_R2_US_EDU_M_F)
-
-# Forecasting: M3_R1_US_B2C (X: t, Holidays) ------------------------------------------
-
-#Create model
-M3_R1_US_B2C <- prophet(changepoint.range = Training_Period, 
-                        holidays = US_Holidays,
-                        daily.seasonality = FALSE,
-                        weekly.seasonality = TRUE,
-                        yearly.seasonality = TRUE)
-US_TSU_Train <- merge(US_TSU_R,US_B2C,by="ds",all.x = TRUE)
-M3_R1_US_B2C <- fit.prophet(M3_R1_US_B2C, US_TSU_Train)
-
-#Performing the forecast
-M3_R1_US_B2C_F <- predict(M3_R1_US_B2C, US_TSU_R) 
-
-#Plotting Forecast
-plot(M3_R1_US_B2C, M3_R1_US_B2C_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M3_R1_US_B2C, M3_R1_US_B2C_F)
-
-# Forecasting: M3_R2_US_B2C (X: t, Holidays, perMar) ------------------------------------------
-
-#Create model
-M3_R2_US_B2C <- prophet(changepoint.range = Training_Period, 
-                     holidays = US_Holidays,
-                     daily.seasonality = FALSE,
-                     weekly.seasonality = TRUE,
-                     yearly.seasonality = TRUE)
-#M3_R2_US_B2C <- add_country_holidays(M3_R2_US_B2C, country_name = 'US')
-M3_R2_US_B2C <- add_regressor(M3_R2_US_B2C, 'perMar')
-#M3_R2_US_B2C <- add_regressor(M3_R2_US_B2C, 'Brand')
-#M3_R2_US_B2C <- add_regressor(M3_R2_US_B2C, 'Campaigns')
-#M3_R2_US_B2C <- add_regressor(M3_R2_US_B2C, 'CountryMGR')
-US_TSU_Train <- merge(US_TSU_R,US_B2C,by="ds",all.x = TRUE)
-M3_R2_US_B2C <- fit.prophet(M3_R2_US_B2C, US_TSU_Train)
-
-#Performing the forecast
-M3_R2_US_B2C_F <- predict(M3_R2_US_B2C, US_TSU_R) 
-
-#Plotting Forecast
-plot(M3_R2_US_B2C, M3_R2_US_B2C_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M3_R2_US_B2C, M3_R2_US_B2C_F)
-
-# Forecasting: M4_R1_US_B2B (X: t, Holidays) ------------------------------------------
-
-#Create model
-M4_R1_US_B2B <- prophet(changepoint.range = Training_Period, 
-                        holidays = US_Holidays,
-                        daily.seasonality = FALSE,
-                        weekly.seasonality = TRUE,
-                        yearly.seasonality = TRUE)
-US_TSU_Train <- merge(US_TSU_R,US_B2B,by="ds",all.x = TRUE)
-M4_R1_US_B2B <- fit.prophet(M4_R1_US_B2B, US_TSU_Train)
-
-#Performing the forecast
-M4_R1_US_B2B_F <- predict(M4_R1_US_B2B, US_TSU_R) 
-
-#Make negative values = 0 
-M4_R1_US_B2B_F <- M4_R1_US_B2B_F %>% 
-  mutate(yhat = if_else(yhat < 0,0,yhat))
-
-#Plotting Forecast
-plot(M4_R1_US_B2B, M4_R1_US_B2B_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M4_R1_US_B2B, M4_R1_US_B2B_F)
-
-
-# Forecasting: M4_R2_US_B2B (X: t, Holidays, perMar) ------------------------------------------
-
-#Create model
-M4_R2_US_B2B <- prophet(changepoint.range = Training_Period, 
-                     holidays = US_Holidays,
-                     daily.seasonality = FALSE,
-                     weekly.seasonality = TRUE,
-                     yearly.seasonality = TRUE)
-#M4_R2_US_B2B <- add_country_holidays(M4_R2_US_B2B, country_name = 'US')
-M4_R2_US_B2B <- add_regressor(M4_R2_US_B2B, 'perMar')
-#M4_R2_US_B2B <- add_regressor(M4_R2_US_B2B, 'Brand')
-#M4_R2_US_B2B <- add_regressor(M4_R2_US_B2B, 'Campaigns')
-#M4_R2_US_B2B <- add_regressor(M4_R2_US_B2B, 'CountryMGR')
-US_B2B_Train <- merge(US_TSU_R,US_B2B,by="ds",all.x = TRUE)
-M4_R2_US_B2B <- fit.prophet(M4_R2_US_B2B, US_B2B_Train)
-
-#Performing the forecast
-M4_R2_US_B2B_F <- predict(M4_R2_US_B2B, US_TSU_R) 
-
-#Make negative values = 0 
-M4_R2_US_B2B_F <- M4_R2_US_B2B_F %>% 
-  mutate(yhat = if_else(yhat < 0,0,yhat))
-
-#Plotting Forecast
-plot(M4_R2_US_B2B, M4_R2_US_B2B_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M4_R2_US_B2B, M4_R2_US_B2B_F)
-
 # Forecasting: M8_R3_US_EDU_ORG (X: t, Holidays, perMar, Campaigns) ------------------------------------------
 
 #Create model
 M8_R3_US_EDU_ORG <- prophet(changepoint.range = 1, 
-                            holidays = US_Holidays,
-                            daily.seasonality = FALSE,
-                            weekly.seasonality = 4,
-                            yearly.seasonality = 9.5,
-                            changepoint.prior.scale = 0.05,
-                            seasonality.prior.scale = 10,
-                            holidays.prior.scale = 10
+                             holidays = US_Holidays,
+                             daily.seasonality = FALSE,
+                             weekly.seasonality = 4,
+                             yearly.seasonality = 9.5,
+                             changepoint.prior.scale = 0.05,
+                             seasonality.prior.scale = 10,
+                             holidays.prior.scale = 10
 )
-#M8_R3_US_EDU_ORG <- add_country_holidays(M8_R3_US_EDU_ORG, country_name = 'US')
 M8_R3_US_EDU_ORG <- add_regressor(M8_R3_US_EDU_ORG, 'perMar')
 #M8_R3_US_EDU_ORG <- add_regressor(M8_R3_US_EDU_ORG, 'Brand')
 M8_R3_US_EDU_ORG <- add_regressor(M8_R3_US_EDU_ORG, 'Campaigns')
@@ -1086,440 +909,295 @@ plot(M8_R3_US_EDU_ORG, M8_R3_US_EDU_ORG_F,
 #Plotting Components 
 prophet_plot_components(M8_R3_US_EDU_ORG, M8_R3_US_EDU_ORG_F)
 
-# Forecasting: M8_R2_US_B2C_DIR (X: t, Holidays, perMar) ------------------------------------------
+# Forecasting: M8_R4_US_EDU_ORG (X: t, Holidays, perMar, Campaigns, Brand) ------------------------------------------
 
 #Create model
-M8_R2_US_B2C_DIR <- prophet(changepoint.range = Training_Period, 
-                          holidays = US_Holidays,
-                          daily.seasonality = FALSE,
-                          weekly.seasonality = TRUE,
-                          yearly.seasonality = TRUE)
-#M8_R2_US_B2C_DIR <- add_country_holidays(M8_R2_US_B2C_DIR, country_name = 'US')
-M8_R2_US_B2C_DIR <- add_regressor(M8_R2_US_B2C_DIR, 'perMar')
-#M8_R2_US_B2C_DIR <- add_regressor(M8_R2_US_B2C_DIR, 'Brand')
-#M8_R2_US_B2C_DIR <- add_regressor(M8_R2_US_B2C_DIR, 'Campaigns')
-#M8_R2_US_B2C_DIR <- add_regressor(M8_R2_US_B2C_DIR, 'CountryMGR')
-US_TSU_Train <- merge(US_TSU_R,US_B2C_DIR,by="ds",all.x = TRUE)
-M8_R2_US_B2C_DIR <- fit.prophet(M8_R2_US_B2C_DIR, US_TSU_Train)
-
-#Performing the forecast
-M8_R2_US_B2C_DIR_F <- predict(M8_R2_US_B2C_DIR, US_TSU_R) 
-
-#Make negative values = 0 
-M8_R2_US_B2C_DIR_F <- M8_R2_US_B2C_DIR_F %>% 
-  mutate(yhat = if_else(yhat < 0,0,yhat))
-
-#Plotting Forecast
-plot(M8_R2_US_B2C_DIR, M8_R2_US_B2C_DIR_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M8_R2_US_B2C_DIR, M8_R2_US_B2C_DIR_F)
-
-# Forecasting: M8_R3_US_B2C_DIR (X: t, Holidays, perMar) ------------------------------------------
-
-#Create model
-M8_R3_US_B2C_DIR <- prophet(changepoint.range = Training_Period, 
+M8_R4_US_EDU_ORG <- prophet(changepoint.range = 1, 
                             holidays = US_Holidays,
                             daily.seasonality = FALSE,
-                            weekly.seasonality = TRUE,
-                            yearly.seasonality = TRUE)
-#M8_R3_US_B2C_DIR <- add_country_holidays(M8_R3_US_B2C_DIR, country_name = 'US')
-M8_R3_US_B2C_DIR <- add_regressor(M8_R3_US_B2C_DIR, 'perMar')
-#M8_R3_US_B2C_DIR <- add_regressor(M8_R3_US_B2C_DIR, 'Brand')
-M8_R3_US_B2C_DIR <- add_regressor(M8_R3_US_B2C_DIR, 'Campaigns')
-#M8_R3_US_B2C_DIR <- add_regressor(M8_R3_US_B2C_DIR, 'CountryMGR')
-US_TSU_Train <- merge(US_TSU_R,US_B2C_DIR,by="ds",all.x = TRUE)
-M8_R3_US_B2C_DIR <- fit.prophet(M8_R3_US_B2C_DIR, US_TSU_Train)
+                            weekly.seasonality = 4,
+                            yearly.seasonality = 9.5,
+                            changepoint.prior.scale = 0.05,
+                            seasonality.prior.scale = 10,
+                            holidays.prior.scale = 10
+)
+M8_R4_US_EDU_ORG <- add_regressor(M8_R4_US_EDU_ORG, 'perMar')
+M8_R4_US_EDU_ORG <- add_regressor(M8_R4_US_EDU_ORG, 'Brand')
+M8_R4_US_EDU_ORG <- add_regressor(M8_R4_US_EDU_ORG, 'Campaigns')
+#M8_R4_US_EDU_ORG <- add_regressor(M8_R4_US_EDU_ORG, 'CountryMGR')
+US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG,by="ds",all.x = TRUE)
+M8_R4_US_EDU_ORG <- fit.prophet(M8_R4_US_EDU_ORG, US_TSU_Train)
 
 #Performing the forecast
-M8_R3_US_B2C_DIR_F <- predict(M8_R3_US_B2C_DIR, US_TSU_R) 
+M8_R4_US_EDU_ORG_F <- predict(M8_R4_US_EDU_ORG, US_TSU_R) 
 
 #Make negative values = 0 
-M8_R3_US_B2C_DIR_F <- M8_R3_US_B2C_DIR_F %>% 
+M8_R4_US_EDU_ORG_F <- M8_R4_US_EDU_ORG_F %>% 
   mutate(yhat = if_else(yhat < 0,0,yhat))
 
 #Plotting Forecast
-plot(M8_R3_US_B2C_DIR, M8_R3_US_B2C_DIR_F, 
+plot(M8_R4_US_EDU_ORG, M8_R4_US_EDU_ORG_F, 
      xlab="Year", 
      ylab="Sign Ups") 
 
 #Plotting Components 
-prophet_plot_components(M8_R3_US_B2C_DIR, M8_R3_US_B2C_DIR_F)
+prophet_plot_components(M8_R4_US_EDU_ORG, M8_R4_US_EDU_ORG_F)
 
-# Forecasting: M9_R2_US_B2C_SEO (X: t, Holidays, perMar) ------------------------------------------
-
-#Create model
-M9_R2_US_B2C_SEO <- prophet(changepoint.range = Training_Period, 
-                          holidays = US_Holidays,
-                          daily.seasonality = FALSE,
-                          weekly.seasonality = TRUE,
-                          yearly.seasonality = TRUE)
-#M9_R2_US_B2C_SEO <- add_country_holidays(M9_R2_US_B2C_SEO, country_name = 'US')
-M9_R2_US_B2C_SEO <- add_regressor(M9_R2_US_B2C_SEO, 'perMar')
-#M9_R2_US_B2C_SEO <- add_regressor(M9_R2_US_B2C_SEO, 'Brand')
-#M9_R2_US_B2C_SEO <- add_regressor(M9_R2_US_B2C_SEO, 'Campaigns')
-#M9_R2_US_B2C_SEO <- add_regressor(M9_R2_US_B2C_SEO, 'CountryMGR')
-US_TSU_Train <- merge(US_TSU_R,US_B2C_SEO,by="ds",all.x = TRUE)
-M9_R2_US_B2C_SEO <- fit.prophet(M9_R2_US_B2C_SEO, US_TSU_Train)
-
-#Performing the forecast
-M9_R2_US_B2C_SEO_F <- predict(M9_R2_US_B2C_SEO, US_TSU_R) 
-
-#Plotting Forecast
-plot(M9_R2_US_B2C_SEO, M9_R2_US_B2C_SEO_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M9_R2_US_B2C_SEO, M9_R2_US_B2C_SEO_F)
-
-# Forecasting: M9_R3_US_B2C_SEO (X: t, Holidays, perMar) ------------------------------------------
+# Forecasting: M24_R3_US_EDU_ORG_WEB (X: t, Holidays, perMar, Campaigns) ------------------------------------------
 
 #Create model
-M9_R3_US_B2C_SEO <- prophet(changepoint.range = Training_Period, 
+M24_R3_US_EDU_ORG_WEB <- prophet(changepoint.range = 1, 
                             holidays = US_Holidays,
                             daily.seasonality = FALSE,
-                            weekly.seasonality = TRUE,
-                            yearly.seasonality = TRUE)
-#M9_R3_US_B2C_SEO <- add_country_holidays(M9_R3_US_B2C_SEO, country_name = 'US')
-M9_R3_US_B2C_SEO <- add_regressor(M9_R3_US_B2C_SEO, 'perMar')
-#M9_R3_US_B2C_SEO <- add_regressor(M9_R3_US_B2C_SEO, 'Brand')
-M9_R3_US_B2C_SEO <- add_regressor(M9_R3_US_B2C_SEO, 'Campaigns')
-#M9_R3_US_B2C_SEO <- add_regressor(M9_R3_US_B2C_SEO, 'CountryMGR')
-US_TSU_Train <- merge(US_TSU_R,US_B2C_SEO,by="ds",all.x = TRUE)
-M9_R3_US_B2C_SEO <- fit.prophet(M9_R3_US_B2C_SEO, US_TSU_Train)
+                            weekly.seasonality = 4,
+                            yearly.seasonality = 9.5,
+                            changepoint.prior.scale = 0.05,
+                            seasonality.prior.scale = 10,
+                            holidays.prior.scale = 10
+)
+M24_R3_US_EDU_ORG_WEB <- add_regressor(M24_R3_US_EDU_ORG_WEB, 'perMar')
+#M24_R3_US_EDU_ORG_WEB <- add_regressor(M24_R3_US_EDU_ORG_WEB, 'Brand')
+M24_R3_US_EDU_ORG_WEB <- add_regressor(M24_R3_US_EDU_ORG_WEB, 'Campaigns')
+#M24_R3_US_EDU_ORG_WEB <- add_regressor(M24_R3_US_EDU_ORG_WEB, 'CountryMGR')
+US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG_WEB,by="ds",all.x = TRUE)
+M24_R3_US_EDU_ORG_WEB <- fit.prophet(M24_R3_US_EDU_ORG_WEB, US_TSU_Train)
 
 #Performing the forecast
-M9_R3_US_B2C_SEO_F <- predict(M9_R3_US_B2C_SEO, US_TSU_R) 
-
-#Plotting Forecast
-plot(M9_R3_US_B2C_SEO, M9_R3_US_B2C_SEO_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M9_R3_US_B2C_SEO, M9_R3_US_B2C_SEO_F)
-
-# Forecasting: M10_R2_US_B2C_PSU (X: t, Holidays, perMar) ------------------------------------------
-
-#Create model
-M10_R2_US_B2C_PSU <- prophet(changepoint.range = Training_Period, 
-                             holidays = US_Holidays,
-                             daily.seasonality = FALSE,
-                             weekly.seasonality = TRUE,
-                             yearly.seasonality = TRUE)
-#M10_R2_US_B2C_PSU <- add_country_holidays(M10_R2_US_B2C_PSU, country_name = 'US')
-M10_R2_US_B2C_PSU <- add_regressor(M10_R2_US_B2C_PSU, 'perMar')
-#M10_R2_US_B2C_PSU <- add_regressor(M10_R2_US_B2C_PSU, 'Brand')
-#M10_R2_US_B2C_PSU <- add_regressor(M10_R2_US_B2C_PSU, 'Campaigns')
-#M10_R2_US_B2C_PSU <- add_regressor(M10_R2_US_B2C_PSU, 'CountryMGR')
-US_TSU_Train <- merge(US_TSU_R,US_B2C_PSU,by="ds",all.x = TRUE)
-M10_R2_US_B2C_PSU <- fit.prophet(M10_R2_US_B2C_PSU, US_TSU_Train)
-
-#Performing the forecast
-M10_R2_US_B2C_PSU_F <- predict(M10_R2_US_B2C_PSU, US_TSU_R) 
+M24_R3_US_EDU_ORG_WEB_F <- predict(M24_R3_US_EDU_ORG_WEB, US_TSU_R) 
 
 #Make negative values = 0 
-M10_R2_US_B2C_PSU_F <- M10_R2_US_B2C_PSU_F %>% 
+M24_R3_US_EDU_ORG_WEB_F <- M24_R3_US_EDU_ORG_WEB_F %>% 
   mutate(yhat = if_else(yhat < 0,0,yhat))
 
 #Plotting Forecast
-plot(M10_R2_US_B2C_PSU, M10_R2_US_B2C_PSU_F, 
+plot(M24_R3_US_EDU_ORG_WEB, M24_R3_US_EDU_ORG_WEB_F, 
      xlab="Year", 
      ylab="Sign Ups") 
 
 #Plotting Components 
-prophet_plot_components(M10_R2_US_B2C_PSU, M10_R2_US_B2C_PSU_F)
+prophet_plot_components(M24_R3_US_EDU_ORG_WEB, M24_R3_US_EDU_ORG_WEB_F)
 
-
-# Forecasting: M10_R3_US_B2C_PSU (X: t, Holidays, perMar) ------------------------------------------
+# Forecasting: M24_R4_US_EDU_ORG_WEB (X: t, Holidays, perMar, Campaigns, Brand) ------------------------------------------
 
 #Create model
-M10_R3_US_B2C_PSU <- prophet(changepoint.range = Training_Period, 
-                             holidays = US_Holidays,
-                             daily.seasonality = FALSE,
-                             weekly.seasonality = TRUE,
-                             yearly.seasonality = TRUE)
-#M10_R3_US_B2C_PSU <- add_country_holidays(M10_R3_US_B2C_PSU, country_name = 'US')
-M10_R3_US_B2C_PSU <- add_regressor(M10_R3_US_B2C_PSU, 'perMar')
-#M10_R3_US_B2C_PSU <- add_regressor(M10_R3_US_B2C_PSU, 'Brand')
-M10_R3_US_B2C_PSU <- add_regressor(M10_R3_US_B2C_PSU, 'Campaigns')
-#M10_R3_US_B2C_PSU <- add_regressor(M10_R3_US_B2C_PSU, 'CountryMGR')
-US_TSU_Train <- merge(US_TSU_R,US_B2C_PSU,by="ds",all.x = TRUE)
-M10_R3_US_B2C_PSU <- fit.prophet(M10_R3_US_B2C_PSU, US_TSU_Train)
+M24_R4_US_EDU_ORG_WEB <- prophet(changepoint.range = 1, 
+                            holidays = US_Holidays,
+                            daily.seasonality = FALSE,
+                            weekly.seasonality = 4,
+                            yearly.seasonality = 9.5,
+                            changepoint.prior.scale = 0.05,
+                            seasonality.prior.scale = 10,
+                            holidays.prior.scale = 10
+)
+M24_R4_US_EDU_ORG_WEB <- add_regressor(M24_R4_US_EDU_ORG_WEB, 'perMar')
+M24_R4_US_EDU_ORG_WEB <- add_regressor(M24_R4_US_EDU_ORG_WEB, 'Brand')
+M24_R4_US_EDU_ORG_WEB <- add_regressor(M24_R4_US_EDU_ORG_WEB, 'Campaigns')
+#M24_R4_US_EDU_ORG_WEB <- add_regressor(M24_R4_US_EDU_ORG_WEB, 'CountryMGR')
+US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG_WEB,by="ds",all.x = TRUE)
+M24_R4_US_EDU_ORG_WEB <- fit.prophet(M24_R4_US_EDU_ORG_WEB, US_TSU_Train)
 
 #Performing the forecast
-M10_R3_US_B2C_PSU_F <- predict(M10_R3_US_B2C_PSU, US_TSU_R) 
+M24_R4_US_EDU_ORG_WEB_F <- predict(M24_R4_US_EDU_ORG_WEB, US_TSU_R) 
 
 #Make negative values = 0 
-M10_R3_US_B2C_PSU_F <- M10_R3_US_B2C_PSU_F %>% 
+M24_R4_US_EDU_ORG_WEB_F <- M24_R4_US_EDU_ORG_WEB_F %>% 
   mutate(yhat = if_else(yhat < 0,0,yhat))
 
 #Plotting Forecast
-plot(M10_R3_US_B2C_PSU, M10_R3_US_B2C_PSU_F, 
+plot(M24_R4_US_EDU_ORG_WEB, M24_R4_US_EDU_ORG_WEB_F, 
      xlab="Year", 
      ylab="Sign Ups") 
 
 #Plotting Components 
-prophet_plot_components(M10_R3_US_B2C_PSU, M10_R3_US_B2C_PSU_F)
+prophet_plot_components(M24_R4_US_EDU_ORG_WEB, M24_R4_US_EDU_ORG_WEB_F)
 
-
-# Forecasting: M11_R2_US_B2B_DIR (X: t, Holidays, perMar) ------------------------------------------
+# Forecasting: M25_R3_US_EDU_ORG_IOS (X: t, Holidays, perMar, Campaigns) ------------------------------------------
 
 #Create model
-M11_R2_US_B2B_DIR <- prophet(changepoint.range = Training_Period, 
-                     holidays = US_Holidays,
-                     daily.seasonality = FALSE,
-                     weekly.seasonality = TRUE,
-                     yearly.seasonality = TRUE)
-#M11_R2_US_B2B_DIR <- add_country_holidays(M11_R2_US_B2B_DIR, country_name = 'US')
-M11_R2_US_B2B_DIR <- add_regressor(M11_R2_US_B2B_DIR, 'perMar')
-#M11_R2_US_B2B_DIR <- add_regressor(M11_R2_US_B2B_DIR, 'Brand')
-#M11_R2_US_B2B_DIR <- add_regressor(M11_R2_US_B2B_DIR, 'Campaigns')
-#M11_R2_US_B2B_DIR <- add_regressor(M11_R2_US_B2B_DIR, 'CountryMGR')
-US_B2B_Train <- merge(US_TSU_R,US_B2B_DIR,by="ds",all.x = TRUE)
-M11_R2_US_B2B_DIR <- fit.prophet(M11_R2_US_B2B_DIR, US_B2B_Train)
+M25_R3_US_EDU_ORG_IOS <- prophet(changepoint.range = 1, 
+                                 holidays = US_Holidays,
+                                 daily.seasonality = FALSE,
+                                 weekly.seasonality = 4,
+                                 yearly.seasonality = 9.5,
+                                 changepoint.prior.scale = 0.05,
+                                 seasonality.prior.scale = 10,
+                                 holidays.prior.scale = 10
+)
+M25_R3_US_EDU_ORG_IOS <- add_regressor(M25_R3_US_EDU_ORG_IOS, 'perMar')
+#M25_R3_US_EDU_ORG_IOS <- add_regressor(M25_R3_US_EDU_ORG_IOS, 'Brand')
+M25_R3_US_EDU_ORG_IOS <- add_regressor(M25_R3_US_EDU_ORG_IOS, 'Campaigns')
+#M25_R3_US_EDU_ORG_IOS <- add_regressor(M25_R3_US_EDU_ORG_IOS, 'CountryMGR')
+US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG_IOS,by="ds",all.x = TRUE)
+M25_R3_US_EDU_ORG_IOS <- fit.prophet(M25_R3_US_EDU_ORG_IOS, US_TSU_Train)
 
 #Performing the forecast
-M11_R2_US_B2B_DIR_F <- predict(M11_R2_US_B2B_DIR, US_TSU_R) 
+M25_R3_US_EDU_ORG_IOS_F <- predict(M25_R3_US_EDU_ORG_IOS, US_TSU_R) 
 
 #Make negative values = 0 
-M11_R2_US_B2B_DIR_F <- M11_R2_US_B2B_DIR_F %>% 
+M25_R3_US_EDU_ORG_IOS_F <- M25_R3_US_EDU_ORG_IOS_F %>% 
   mutate(yhat = if_else(yhat < 0,0,yhat))
 
 #Plotting Forecast
-plot(M11_R2_US_B2B_DIR, M11_R2_US_B2B_DIR_F, 
+plot(M25_R3_US_EDU_ORG_IOS, M25_R3_US_EDU_ORG_IOS_F, 
      xlab="Year", 
      ylab="Sign Ups") 
 
 #Plotting Components 
-prophet_plot_components(M11_R2_US_B2B_DIR, M11_R2_US_B2B_DIR_F)
+prophet_plot_components(M25_R3_US_EDU_ORG_IOS, M25_R3_US_EDU_ORG_IOS_F)
 
-# Forecasting: M12_R2_US_B2B_SEO (X: t, Holidays, perMar) ------------------------------------------
+# Forecasting: M25_R4_US_EDU_ORG_IOS (X: t, Holidays, perMar, Campaigns, Brand) ------------------------------------------
 
 #Create model
-M12_R2_US_B2B_SEO <- prophet(changepoint.range = Training_Period, 
-                     holidays = US_Holidays,
-                     daily.seasonality = FALSE,
-                     weekly.seasonality = TRUE,
-                     yearly.seasonality = TRUE)
-#M12_R2_US_B2B_SEO <- add_country_holidays(M12_R2_US_B2B_SEO, country_name = 'US')
-M12_R2_US_B2B_SEO <- add_regressor(M12_R2_US_B2B_SEO, 'perMar')
-#M12_R2_US_B2B_SEO <- add_regressor(M12_R2_US_B2B_SEO, 'Brand')
-#M12_R2_US_B2B_SEO <- add_regressor(M12_R2_US_B2B_SEO, 'Campaigns')
-#M12_R2_US_B2B_SEO <- add_regressor(M12_R2_US_B2B_SEO, 'CountryMGR')
-US_B2B_Train <- merge(US_TSU_R,US_B2B_SEO,by="ds",all.x = TRUE)
-M12_R2_US_B2B_SEO <- fit.prophet(M12_R2_US_B2B_SEO, US_B2B_Train)
+M25_R4_US_EDU_ORG_IOS <- prophet(changepoint.range = 1, 
+                                 holidays = US_Holidays,
+                                 daily.seasonality = FALSE,
+                                 weekly.seasonality = 4,
+                                 yearly.seasonality = 9.5,
+                                 changepoint.prior.scale = 0.05,
+                                 seasonality.prior.scale = 10,
+                                 holidays.prior.scale = 10
+)
+M25_R4_US_EDU_ORG_IOS <- add_regressor(M25_R4_US_EDU_ORG_IOS, 'perMar')
+M25_R4_US_EDU_ORG_IOS <- add_regressor(M25_R4_US_EDU_ORG_IOS, 'Brand')
+M25_R4_US_EDU_ORG_IOS <- add_regressor(M25_R4_US_EDU_ORG_IOS, 'Campaigns')
+#M25_R4_US_EDU_ORG_IOS <- add_regressor(M25_R4_US_EDU_ORG_IOS, 'CountryMGR')
+US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG_IOS,by="ds",all.x = TRUE)
+M25_R4_US_EDU_ORG_IOS <- fit.prophet(M25_R4_US_EDU_ORG_IOS, US_TSU_Train)
 
 #Performing the forecast
-M12_R2_US_B2B_SEO_F <- predict(M12_R2_US_B2B_SEO, US_TSU_R) 
+M25_R4_US_EDU_ORG_IOS_F <- predict(M25_R4_US_EDU_ORG_IOS, US_TSU_R) 
 
 #Make negative values = 0 
-M12_R2_US_B2B_SEO_F <- M12_R2_US_B2B_SEO_F %>% 
+M25_R4_US_EDU_ORG_IOS_F <- M25_R4_US_EDU_ORG_IOS_F %>% 
   mutate(yhat = if_else(yhat < 0,0,yhat))
 
 #Plotting Forecast
-plot(M12_R2_US_B2B_SEO, M12_R2_US_B2B_SEO_F, 
+plot(M25_R4_US_EDU_ORG_IOS, M25_R4_US_EDU_ORG_IOS_F, 
      xlab="Year", 
      ylab="Sign Ups") 
 
 #Plotting Components 
-prophet_plot_components(M12_R2_US_B2B_SEO, M12_R2_US_B2B_SEO_F)
+prophet_plot_components(M25_R4_US_EDU_ORG_IOS, M25_R4_US_EDU_ORG_IOS_F)
 
-# Forecasting: M13_R2_US_B2B_PSU (X: t, Holidays, perMar) ------------------------------------------
+# Forecasting: M26_R3_US_EDU_ORG_AND (X: t, Holidays, perMar, Campaigns) ------------------------------------------
 
 #Create model
-M13_R2_US_B2B_PSU <- prophet(changepoint.range = Training_Period, 
-                             holidays = US_Holidays,
-                             daily.seasonality = FALSE,
-                             weekly.seasonality = TRUE,
-                             yearly.seasonality = TRUE)
-#M13_R2_US_B2B_PSU <- add_country_holidays(M13_R2_US_B2B_PSU, country_name = 'US')
-M13_R2_US_B2B_PSU <- add_regressor(M13_R2_US_B2B_PSU, 'perMar')
-#M13_R2_US_B2B_PSU <- add_regressor(M13_R2_US_B2B_PSU, 'Brand')
-#M13_R2_US_B2B_PSU <- add_regressor(M13_R2_US_B2B_PSU, 'Campaigns')
-#M13_R2_US_B2B_PSU <- add_regressor(M13_R2_US_B2B_PSU, 'CountryMGR')
-US_B2B_Train <- merge(US_TSU_R,US_B2B_PSU,by="ds",all.x = TRUE)
-M13_R2_US_B2B_PSU <- fit.prophet(M13_R2_US_B2B_PSU, US_B2B_Train)
+M26_R3_US_EDU_ORG_AND <- prophet(changepoint.range = 1, 
+                                 holidays = US_Holidays,
+                                 daily.seasonality = FALSE,
+                                 weekly.seasonality = 4,
+                                 yearly.seasonality = 9.5,
+                                 changepoint.prior.scale = 0.05,
+                                 seasonality.prior.scale = 10,
+                                 holidays.prior.scale = 10
+)
+M26_R3_US_EDU_ORG_AND <- add_regressor(M26_R3_US_EDU_ORG_AND, 'perMar')
+#M26_R3_US_EDU_ORG_AND <- add_regressor(M26_R3_US_EDU_ORG_AND, 'Brand')
+M26_R3_US_EDU_ORG_AND <- add_regressor(M26_R3_US_EDU_ORG_AND, 'Campaigns')
+#M26_R3_US_EDU_ORG_AND <- add_regressor(M26_R3_US_EDU_ORG_AND, 'CountryMGR')
+US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG_AND,by="ds",all.x = TRUE)
+M26_R3_US_EDU_ORG_AND <- fit.prophet(M26_R3_US_EDU_ORG_AND, US_TSU_Train)
 
 #Performing the forecast
-M13_R2_US_B2B_PSU_F <- predict(M13_R2_US_B2B_PSU, US_TSU_R) 
+M26_R3_US_EDU_ORG_AND_F <- predict(M26_R3_US_EDU_ORG_AND, US_TSU_R) 
 
 #Make negative values = 0 
-M13_R2_US_B2B_PSU_F <- M13_R2_US_B2B_PSU_F %>% 
+M26_R3_US_EDU_ORG_AND_F <- M26_R3_US_EDU_ORG_AND_F %>% 
   mutate(yhat = if_else(yhat < 0,0,yhat))
 
 #Plotting Forecast
-plot(M13_R2_US_B2B_PSU, M13_R2_US_B2B_PSU_F, 
+plot(M26_R3_US_EDU_ORG_AND, M26_R3_US_EDU_ORG_AND_F, 
      xlab="Year", 
      ylab="Sign Ups") 
 
 #Plotting Components 
-prophet_plot_components(M13_R2_US_B2B_PSU, M13_R2_US_B2B_PSU_F)
+prophet_plot_components(M26_R3_US_EDU_ORG_AND, M26_R3_US_EDU_ORG_AND_F)
 
-print( Sys.time() - PM_start)
+# Forecasting: M26_R4_US_EDU_ORG_AND (X: t, Holidays, perMar, Campaigns, Brand) ------------------------------------------
+
+#Create model
+M26_R4_US_EDU_ORG_AND <- prophet(changepoint.range = 1, 
+                                 holidays = US_Holidays,
+                                 daily.seasonality = FALSE,
+                                 weekly.seasonality = 4,
+                                 yearly.seasonality = 9.5,
+                                 changepoint.prior.scale = 0.05,
+                                 seasonality.prior.scale = 10,
+                                 holidays.prior.scale = 10
+)
+M26_R4_US_EDU_ORG_AND <- add_regressor(M26_R4_US_EDU_ORG_AND, 'perMar')
+M26_R4_US_EDU_ORG_AND <- add_regressor(M26_R4_US_EDU_ORG_AND, 'Brand')
+M26_R4_US_EDU_ORG_AND <- add_regressor(M26_R4_US_EDU_ORG_AND, 'Campaigns')
+#M26_R4_US_EDU_ORG_AND <- add_regressor(M26_R4_US_EDU_ORG_AND, 'CountryMGR')
+US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG_AND,by="ds",all.x = TRUE)
+M26_R4_US_EDU_ORG_AND <- fit.prophet(M26_R4_US_EDU_ORG_AND, US_TSU_Train)
+
+#Performing the forecast
+M26_R4_US_EDU_ORG_AND_F <- predict(M26_R4_US_EDU_ORG_AND, US_TSU_R) 
+
+#Make negative values = 0 
+M26_R4_US_EDU_ORG_AND_F <- M26_R4_US_EDU_ORG_AND_F %>% 
+  mutate(yhat = if_else(yhat < 0,0,yhat))
+
+#Plotting Forecast
+plot(M26_R4_US_EDU_ORG_AND, M26_R4_US_EDU_ORG_AND_F, 
+     xlab="Year", 
+     ylab="Sign Ups") 
+
+#Plotting Components 
+prophet_plot_components(M26_R4_US_EDU_ORG_AND, M26_R4_US_EDU_ORG_AND_F)
+
+# Model List --------------------------------------------------------------
+
+#Create Model List 
+M_names <- c("M1_R1_US_TSU", "M1_R2_US_TSU", "M1_R3_US_TSU", "M1_R32_US_TSU", 
+             "M1_R32_US_TSU_FO1", "M1_R32_US_TSU_FO2", "M1_R32_US_TSU_FO3", 
+             "M1_R32_US_TSU_FO4", "M1_R32_US_TSU_FO5", "M1_R32_US_TSU_M", 
+             "M1_R4_US_TSU", "M1_R4_US_TSU_M", 
+             "M8_R3_US_EDU_ORG", "M8_R4_US_EDU_ORG", 
+             "M24_R3_US_EDU_ORG_WEB","M24_R4_US_EDU_ORG_WEB",
+             "M25_R3_US_EDU_ORG_IOS","M25_R4_US_EDU_ORG_IOS",
+             "M26_R3_US_EDU_ORG_AND","M26_R4_US_EDU_ORG_AND"
+)
 
 # Regression Metrics ------------------------------------------------------
 
 PM_start <- Sys.time()
 
-M1_R1_US_TSU_CV = cross_validation(
-  model = M1_R1_US_TSU,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M1_R1_US_TSU_PM = performance_metrics(M1_R1_US_TSU_CV)
-M1_R1_US_TSU_APE <- transpose_df(tail(M1_R1_US_TSU_PM,1))
-M1_R1_US_TSU_APE <- M1_R1_US_TSU_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M1_R1_US_TSU = 2) 
+#For Loop to calculate metrics for each model 
+for (model_name in M_names) {
+  
+  #Perform cross-validation
+  model_cv <- cross_validation(
+    model = get(model_name),
+    units = "days",
+    horizon = 180,
+    period = 30
+  )
+  
+  #Calculate performance metrics
+  model_pm <- performance_metrics(model_cv)
+  
+  #Transpose and format
+  model_ape <- transpose_df(tail(model_pm, 1))
+  model_ape <- model_ape %>% 
+    rename(Metric = rowname) %>%
+    rename(!!paste0(model_name) := 2)
+  
+  #Naming
+  assign(paste0(model_name, "_APE"), model_ape)
+}
 
-M1_R2_US_TSU_CV = cross_validation(
-  model = M1_R2_US_TSU,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M1_R2_US_TSU_PM = performance_metrics(M1_R2_US_TSU_CV)
-M1_R2_US_TSU_APE <- transpose_df(tail(M1_R2_US_TSU_PM,1))
-M1_R2_US_TSU_APE <- M1_R2_US_TSU_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M1_R2_US_TSU = 2) 
+#Retrieve metric dataset names 
+ape_names <- paste0(M_names, "_APE")
 
-M1_R3_US_TSU_CV = cross_validation(
-  model = M1_R3_US_TSU,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M1_R3_US_TSU_PM = performance_metrics(M1_R3_US_TSU_CV)
-M1_R3_US_TSU_APE <- transpose_df(tail(M1_R3_US_TSU_PM,1))
-M1_R3_US_TSU_APE <- M1_R3_US_TSU_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M1_R3_US_TSU = 2) 
+#Assign first model metrics only 
+All_APE <- get(ape_names[1])
 
-M1_R32_US_TSU_CV = cross_validation(
-  model = M1_R32_US_TSU,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M1_R32_US_TSU_PM = performance_metrics(M1_R32_US_TSU_CV)
-M1_R32_US_TSU_APE <- transpose_df(tail(M1_R32_US_TSU_PM,1))
-M1_R32_US_TSU_APE <- M1_R32_US_TSU_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M1_R32_US_TSU = 2) 
-
-M1_R32_US_TSU_FO1_CV = cross_validation(
-  model = M1_R32_US_TSU_FO1,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M1_R32_US_TSU_FO1_PM = performance_metrics(M1_R32_US_TSU_FO1_CV)
-M1_R32_US_TSU_FO1_APE <- transpose_df(tail(M1_R32_US_TSU_FO1_PM,1))
-M1_R32_US_TSU_FO1_APE <- M1_R32_US_TSU_FO1_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M1_R32_US_TSU_FO1 = 2) 
-
-M1_R32_US_TSU_FO2_CV = cross_validation(
-  model = M1_R32_US_TSU_FO2,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M1_R32_US_TSU_FO2_PM = performance_metrics(M1_R32_US_TSU_FO2_CV)
-M1_R32_US_TSU_FO2_APE <- transpose_df(tail(M1_R32_US_TSU_FO2_PM,1))
-M1_R32_US_TSU_FO2_APE <- M1_R32_US_TSU_FO2_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M1_R32_US_TSU_FO2 = 2) 
-
-M1_R32_US_TSU_FO3_CV = cross_validation(
-  model = M1_R32_US_TSU_FO3,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M1_R32_US_TSU_FO3_PM = performance_metrics(M1_R32_US_TSU_FO3_CV)
-M1_R32_US_TSU_FO3_APE <- transpose_df(tail(M1_R32_US_TSU_FO3_PM,1))
-M1_R32_US_TSU_FO3_APE <- M1_R32_US_TSU_FO3_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M1_R32_US_TSU_FO3 = 2) 
-
-M1_R32_US_TSU_FO4_CV = cross_validation(
-  model = M1_R32_US_TSU_FO4,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M1_R32_US_TSU_FO4_PM = performance_metrics(M1_R32_US_TSU_FO4_CV)
-M1_R32_US_TSU_FO4_APE <- transpose_df(tail(M1_R32_US_TSU_FO4_PM,1))
-M1_R32_US_TSU_FO4_APE <- M1_R32_US_TSU_FO4_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M1_R32_US_TSU_FO4 = 2) 
-
-M1_R32_US_TSU_FO5_CV = cross_validation(
-  model = M1_R32_US_TSU_FO5,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M1_R32_US_TSU_FO5_PM = performance_metrics(M1_R32_US_TSU_FO5_CV)
-M1_R32_US_TSU_FO5_APE <- transpose_df(tail(M1_R32_US_TSU_FO5_PM,1))
-M1_R32_US_TSU_FO5_APE <- M1_R32_US_TSU_FO5_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M1_R32_US_TSU_FO5 = 2) 
-
-M1_R32_US_TSU_M_CV = cross_validation(
-  model = M1_R32_US_TSU_M,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M1_R32_US_TSU_M_PM = performance_metrics(M1_R32_US_TSU_M_CV)
-M1_R32_US_TSU_M_APE <- transpose_df(tail(M1_R32_US_TSU_M_PM,1))
-M1_R32_US_TSU_M_APE <- M1_R32_US_TSU_M_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M1_R32_US_TSU_M = 2) 
-
-M1_R4_US_TSU_CV = cross_validation(
-  model = M1_R4_US_TSU,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M1_R4_US_TSU_PM = performance_metrics(M1_R4_US_TSU_CV)
-M1_R4_US_TSU_APE <- transpose_df(tail(M1_R4_US_TSU_PM,1))
-M1_R4_US_TSU_APE <- M1_R4_US_TSU_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M1_R4_US_TSU = 2) 
-
-M1_R4_US_TSU_M_CV = cross_validation(
-  model = M1_R4_US_TSU_M,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M1_R4_US_TSU_M_PM = performance_metrics(M1_R4_US_TSU_M_CV)
-M1_R4_US_TSU_M_APE <- transpose_df(tail(M1_R4_US_TSU_M_PM,1))
-M1_R4_US_TSU_M_APE <- M1_R4_US_TSU_M_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M1_R4_US_TSU_M = 2) 
-
-M8_R3_US_EDU_ORG_CV = cross_validation(
-  model = M8_R3_US_EDU_ORG,
-  units = "days",
-  horizon = 180,
-  period = 30)
-M8_R3_US_EDU_ORG_PM = performance_metrics(M8_R3_US_EDU_ORG_CV)
-M8_R3_US_EDU_ORG_APE <- transpose_df(tail(M8_R3_US_EDU_ORG_PM,1))
-M8_R3_US_EDU_ORG_APE <- M8_R3_US_EDU_ORG_APE %>% 
-  rename(Metric = rowname) %>% 
-  rename(M8_R3_US_EDU_ORG = 2) 
-
-All_APE <- merge(M1_R1_US_TSU_APE,M1_R2_US_TSU_APE,by="Metric",all=T)
-All_APE <- merge(All_APE,M1_R3_US_TSU_APE,by="Metric",all=T)
-All_APE <- merge(All_APE,M1_R32_US_TSU_APE,by="Metric",all=T)
-All_APE <- merge(All_APE,M1_R32_US_TSU_FO1_APE,by="Metric",all=T)
-All_APE <- merge(All_APE,M1_R32_US_TSU_FO2_APE,by="Metric",all=T)
-All_APE <- merge(All_APE,M1_R32_US_TSU_FO3_APE,by="Metric",all=T)
-All_APE <- merge(All_APE,M1_R32_US_TSU_FO4_APE,by="Metric",all=T)
-All_APE <- merge(All_APE,M1_R32_US_TSU_FO5_APE,by="Metric",all=T)
-All_APE <- merge(All_APE,M1_R32_US_TSU_M_APE,by="Metric",all=T)
-All_APE <- merge(All_APE,M1_R4_US_TSU_APE,by="Metric",all=T)
-All_APE <- merge(All_APE,M1_R4_US_TSU_M_APE,by="Metric",all=T)
-All_APE <- merge(All_APE,M8_R3_US_EDU_ORG_APE,by="Metric",all=T)
+#Merge and compile metrics from all models
+for (ape_name in ape_names[-1]) {
+  All_APE <- merge(All_APE, get(ape_name), by="Metric", all=TRUE)
+}
 
 #Sort by Metrics
 All_APE <- All_APE %>% 
@@ -1531,110 +1209,29 @@ print( Sys.time() - PM_start)
 
 Co_start <- Sys.time()
 
-#Retrieve Coefficients
-M1_R1_US_TSU_Co <- M1_R1_US_TSU$params$beta %*% as.matrix(M1_R1_US_TSU$train.component.cols)
-M1_R1_US_TSU_Co <- transpose_df(as_tibble(M1_R1_US_TSU_Co))
-M1_R1_US_TSU_Co <- M1_R1_US_TSU_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M1_R1_US_TSU = `1`)
-M1_R1_US_TSU_Co <- rbind(M1_R1_US_TSU_Co, list('Intercept',M1_R1_US_TSU$params$m))
+#For Loop to retrieve coefficients for every model 
+for (dataset_name in M_names) {
+  current_dataset <- get(dataset_name)
+  current_co <- current_dataset$params$beta %*% as.matrix(current_dataset$train.component.cols)
+  current_co <- transpose_df(as_tibble(current_co))
+  current_co <- current_co %>% 
+    rename(Regressor = rowname) %>%
+    rename(!!paste0(dataset_name) := `1`)  
+  current_co <- rbind(current_co, list('Intercept', current_dataset$params$m))
+  assign(paste0(dataset_name, "_Co"), current_co)
+}
 
-M1_R2_US_TSU_Co <- M1_R2_US_TSU$params$beta %*% as.matrix(M1_R2_US_TSU$train.component.cols)
-M1_R2_US_TSU_Co <- transpose_df(as_tibble(M1_R2_US_TSU_Co))
-M1_R2_US_TSU_Co <- M1_R2_US_TSU_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M1_R2_US_TSU = `1`)
-M1_R2_US_TSU_Co <- rbind(M1_R2_US_TSU_Co, list('Intercept',M1_R2_US_TSU$params$m))
+#Retrieve Coefficient Names
+Co_names <- paste0(M_names, "_Co")
 
-M1_R3_US_TSU_Co <- M1_R3_US_TSU$params$beta %*% as.matrix(M1_R3_US_TSU$train.component.cols)
-M1_R3_US_TSU_Co <- transpose_df(as_tibble(M1_R3_US_TSU_Co))
-M1_R3_US_TSU_Co <- M1_R3_US_TSU_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M1_R3_US_TSU = `1`)
-M1_R3_US_TSU_Co <- rbind(M1_R3_US_TSU_Co, list('Intercept',M1_R3_US_TSU$params$m))
+#Assign first dataset only 
+All_Co <- get(Co_names[1])
 
-M1_R32_US_TSU_Co <- M1_R32_US_TSU$params$beta %*% as.matrix(M1_R32_US_TSU$train.component.cols)
-M1_R32_US_TSU_Co <- transpose_df(as_tibble(M1_R32_US_TSU_Co))
-M1_R32_US_TSU_Co <- M1_R32_US_TSU_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M1_R32_US_TSU = `1`)
-M1_R32_US_TSU_Co <- rbind(M1_R32_US_TSU_Co, list('Intercept',M1_R32_US_TSU$params$m))
-
-M1_R32_US_TSU_FO1_Co <- M1_R32_US_TSU_FO1$params$beta %*% as.matrix(M1_R32_US_TSU_FO1$train.component.cols)
-M1_R32_US_TSU_FO1_Co <- transpose_df(as_tibble(M1_R32_US_TSU_FO1_Co))
-M1_R32_US_TSU_FO1_Co <- M1_R32_US_TSU_FO1_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M1_R32_US_TSU_FO1 = `1`)
-M1_R32_US_TSU_FO1_Co <- rbind(M1_R32_US_TSU_FO1_Co, list('Intercept',M1_R32_US_TSU_FO1$params$m))
-
-M1_R32_US_TSU_FO2_Co <- M1_R32_US_TSU_FO2$params$beta %*% as.matrix(M1_R32_US_TSU_FO2$train.component.cols)
-M1_R32_US_TSU_FO2_Co <- transpose_df(as_tibble(M1_R32_US_TSU_FO2_Co))
-M1_R32_US_TSU_FO2_Co <- M1_R32_US_TSU_FO2_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M1_R32_US_TSU_FO2 = `1`)
-M1_R32_US_TSU_FO2_Co <- rbind(M1_R32_US_TSU_FO2_Co, list('Intercept',M1_R32_US_TSU_FO2$params$m))
-
-M1_R32_US_TSU_FO3_Co <- M1_R32_US_TSU_FO3$params$beta %*% as.matrix(M1_R32_US_TSU_FO3$train.component.cols)
-M1_R32_US_TSU_FO3_Co <- transpose_df(as_tibble(M1_R32_US_TSU_FO3_Co))
-M1_R32_US_TSU_FO3_Co <- M1_R32_US_TSU_FO3_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M1_R32_US_TSU_FO3 = `1`)
-M1_R32_US_TSU_FO3_Co <- rbind(M1_R32_US_TSU_FO3_Co, list('Intercept',M1_R32_US_TSU_FO3$params$m))
-
-M1_R32_US_TSU_FO4_Co <- M1_R32_US_TSU_FO4$params$beta %*% as.matrix(M1_R32_US_TSU_FO4$train.component.cols)
-M1_R32_US_TSU_FO4_Co <- transpose_df(as_tibble(M1_R32_US_TSU_FO4_Co))
-M1_R32_US_TSU_FO4_Co <- M1_R32_US_TSU_FO4_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M1_R32_US_TSU_FO4 = `1`)
-M1_R32_US_TSU_FO4_Co <- rbind(M1_R32_US_TSU_FO4_Co, list('Intercept',M1_R32_US_TSU_FO4$params$m))
-
-M1_R32_US_TSU_FO5_Co <- M1_R32_US_TSU_FO5$params$beta %*% as.matrix(M1_R32_US_TSU_FO5$train.component.cols)
-M1_R32_US_TSU_FO5_Co <- transpose_df(as_tibble(M1_R32_US_TSU_FO5_Co))
-M1_R32_US_TSU_FO5_Co <- M1_R32_US_TSU_FO5_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M1_R32_US_TSU_FO5 = `1`)
-M1_R32_US_TSU_FO5_Co <- rbind(M1_R32_US_TSU_FO5_Co, list('Intercept',M1_R32_US_TSU_FO5$params$m))
-
-M1_R32_US_TSU_M_Co <- M1_R32_US_TSU_M$params$beta %*% as.matrix(M1_R32_US_TSU_M$train.component.cols)
-M1_R32_US_TSU_M_Co <- transpose_df(as_tibble(M1_R32_US_TSU_M_Co))
-M1_R32_US_TSU_M_Co <- M1_R32_US_TSU_M_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M1_R32_US_TSU_M = `1`)
-M1_R32_US_TSU_M_Co <- rbind(M1_R32_US_TSU_M_Co, list('Intercept',M1_R32_US_TSU_M$params$m))
-
-M1_R4_US_TSU_Co <- M1_R4_US_TSU$params$beta %*% as.matrix(M1_R4_US_TSU$train.component.cols)
-M1_R4_US_TSU_Co <- transpose_df(as_tibble(M1_R4_US_TSU_Co))
-M1_R4_US_TSU_Co <- M1_R4_US_TSU_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M1_R4_US_TSU = `1`)
-M1_R4_US_TSU_Co <- rbind(M1_R4_US_TSU_Co, list('Intercept',M1_R4_US_TSU$params$m))
-
-M1_R4_US_TSU_M_Co <- M1_R4_US_TSU_M$params$beta %*% as.matrix(M1_R4_US_TSU_M$train.component.cols)
-M1_R4_US_TSU_M_Co <- transpose_df(as_tibble(M1_R4_US_TSU_M_Co))
-M1_R4_US_TSU_M_Co <- M1_R4_US_TSU_M_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M1_R4_US_TSU_M = `1`)
-M1_R4_US_TSU_M_Co <- rbind(M1_R4_US_TSU_M_Co, list('Intercept',M1_R4_US_TSU_M$params$m))
-
-M8_R3_US_EDU_ORG_Co <- M8_R3_US_EDU_ORG$params$beta %*% as.matrix(M8_R3_US_EDU_ORG$train.component.cols)
-M8_R3_US_EDU_ORG_Co <- transpose_df(as_tibble(M8_R3_US_EDU_ORG_Co))
-M8_R3_US_EDU_ORG_Co <- M8_R3_US_EDU_ORG_Co %>% 
-  rename(Regressor = rowname) %>% 
-  rename(M8_R3_US_EDU_ORG = `1`)
-M8_R3_US_EDU_ORG_Co <- rbind(M8_R3_US_EDU_ORG_Co, list('Intercept',M8_R3_US_EDU_ORG$params$m))
-
-All_Co <- merge(M1_R1_US_TSU_Co,M1_R2_US_TSU_Co,by="Regressor",all=T)
-All_Co <- merge(All_Co,M1_R3_US_TSU_Co,by="Regressor",all=T)
-All_Co <- merge(All_Co,M1_R32_US_TSU_Co,by="Regressor",all=T)
-All_Co <- merge(All_Co,M1_R32_US_TSU_FO1_Co,by="Regressor",all=T)
-All_Co <- merge(All_Co,M1_R32_US_TSU_FO2_Co,by="Regressor",all=T)
-All_Co <- merge(All_Co,M1_R32_US_TSU_FO3_Co,by="Regressor",all=T)
-All_Co <- merge(All_Co,M1_R32_US_TSU_FO4_Co,by="Regressor",all=T)
-All_Co <- merge(All_Co,M1_R32_US_TSU_FO5_Co,by="Regressor",all=T)
-All_Co <- merge(All_Co,M1_R32_US_TSU_M_Co,by="Regressor",all=T)
-All_Co <- merge(All_Co,M1_R4_US_TSU_Co,by="Regressor",all=T)
-All_Co <- merge(All_Co,M1_R4_US_TSU_M_Co,by="Regressor",all=T)
-All_Co <- merge(All_Co,M8_R3_US_EDU_ORG_Co,by="Regressor",all=T)
+#Merge and compile all model coefficients
+for (i in 2:length(Co_names)) {
+  current_co <- get(Co_names[i])
+  All_Co <- merge(All_Co, current_co, by="Regressor", all=TRUE)
+}
 
 #Sort by Regressors
 All_Co <- All_Co %>% 
@@ -1647,43 +1244,58 @@ print( Sys.time() - Co_start)
 #Order dates
 US_TSU <- US_TSU[order(as.Date(US_TSU$ds, format="%d/%m/%Y")),]
 
-#Creating Summary Tabs
-All_A <- tibble(US_TSU$ds, US_TSU$y,
-                US_EDU$y,US_B2B$y,US_B2C$y,
-                US_B2C_DIR$y,US_B2C_SEO$y,US_B2C_PSU$y,
-                US_B2B_DIR$y,US_B2B_SEO$y,US_B2B_PSU$y)
+#Create Actuals (2022-2025) Tab
+All_A <- tibble(US_TSU_A$ds, US_TSU_A$y,
+                US_EDU_A$y,US_B2B_A$y,US_B2C_A$y,
+                US_EDU_ORG_A$y,US_EDU_ORG_WEB_A$y,US_EDU_ORG_IOS_A$y,US_EDU_ORG_AND_A$y,
+                US_B2C_DIR_A$y,US_B2C_SEO_A$y,US_B2C_PSU_A$y,
+                US_B2B_DIR_A$y,US_B2B_SEO_A$y,US_B2B_PSU_A$y)
 All_A <- All_A %>% 
-  rename(ds = `US_TSU$ds`) %>% 
-  filter(ds >= D_ActualStart)
+  rename(ds = `US_TSU_A$ds`)
 
-All_A <- merge(All_A,US_EDU_ORG,by='ds',all.x = TRUE)
-All_A[is.na(All_A)] <- 0
+# Initialize an empty list to store data for forecasts
+tibble_data <- list()
 
-All_F <- tibble(M1_R1_US_TSU_F$ds,M1_R1_US_TSU_F$yhat,M1_R2_US_TSU_F$yhat,M1_R3_US_TSU_F$yhat,
-                M1_R32_US_TSU_F$yhat,M1_R32_US_TSU_FO1_F$yhat,M1_R32_US_TSU_FO2_F$yhat,M1_R32_US_TSU_FO3_F$yhat,M1_R32_US_TSU_FO4_F$yhat,M1_R32_US_TSU_FO5_F$yhat,
-                M1_R32_US_TSU_M_F$yhat,M1_R4_US_TSU_F$yhat,M1_R4_US_TSU_M_F$yhat, #Total
-                M2_R2_US_EDU_F$yhat,M2_R2_US_EDU_M_F$yhat, #Edu
-                M3_R1_US_B2C_F$yhat,M3_R2_US_B2C_F$yhat, #B2C
-                M4_R1_US_B2B_F$yhat,M4_R2_US_B2B_F$yhat, #B2B
-                M8_R3_US_EDU_ORG_F$yhat,
-                M8_R2_US_B2C_DIR_F$yhat,M8_R3_US_B2C_DIR_F$yhat, #B2C Direct
-                M9_R2_US_B2C_SEO_F$yhat,M9_R3_US_B2C_SEO_F$yhat, #B2C SEO
-                M10_R2_US_B2C_PSU_F$yhat,M10_R3_US_B2C_PSU_F$yhat, #B2C Paid
-                M11_R2_US_B2B_DIR_F$yhat,M12_R2_US_B2B_SEO_F$yhat,M13_R2_US_B2B_PSU_F$yhat) #B2B
+#Loop through each model and retrieve forecasts
+for (model in M_names) {
+  model_data <- get(paste0(model, "_F"))
+  tibble_data[[model]] <- model_data$yhat
+}
+
+#Compile table of forecasts from all models 
+All_F <- tibble::tibble(M1_R1_US_TSU_F$ds,!!!tibble_data)
+
 All_F <- All_F %>% 
   rename(ds = `M1_R1_US_TSU_F$ds`)
 
 #Output Tabs Lists
 All_US_TSU <- list('All_A'=All_A,'All_F'=All_F,'All_Co'=All_Co,'All_APE'=All_APE)
-#All_US_TSU <- list('All_A'=All_A,'All_F'=All_F,
-#                   'F_US_TSU_M1'=M1_R0_US_TSU_F,'F_US_TSU_M2'=M1_R1_US_TSU_F,'F_US_TSU_M3'=M1_R2_US_TSU_F, #TSU
-#                   'F_US_EDU_M4'=M2_R2_US_EDU_F,'F_US_B2B_M5'=M4_R2_US_B2B_F,'F_US_B2C_M6'=M3_R2_US_B2C_F, #UJ Hols, MS
-#                   'F_US_EDU_M7'=M2_R1_US_EDU_F,'F_US_B2B_M8'=M4_R1_US_B2B_F,'F_US_B2C_M9'=M3_R1_US_B2C_F, #UJ Hols
-#                   'F_US_B2C_M10'=M10_R2_US_B2C_PSU_F,'F_US_B2C_M11'=M8_R2_US_B2C_DIR_F,'F_US_B2C_M12'=M9_R2_US_B2C_SEO_F, #UJ,Source Hols, MS
-#                   'F_US_B2B_M13'=M13_R2_US_B2B_PSU_F,'F_US_B2B_M14'=M11_R2_US_B2B_DIR_F,'F_US_B2B_M15'=M12_R2_US_B2B_SEO_F) #UJ,Source Hols, MS
-#All_US_TSU <- list('All_A'=All_A,'All_F'=All_F,
-#                   'F_US_TSU_M1'=M1_R0_US_TSU_F,'F_US_TSU_M2'=M1_R1_US_TSU_F,'F_US_TSU_M3'=M1_R2_US_TSU_F,'F_US_EDU_M4'=M2_R2_US_EDU_F,'F_US_B2B_M5'=M4_R2_US_B2B_F,'F_US_B2C_M6'=M3_R2_US_B2C_F,'F_US_EDU_M7'=M2_R1_US_EDU_F,'F_US_B2B_M8'=M4_R1_US_B2B_F,'F_US_B2C_M9'=M3_R1_US_B2C_F,
-#                   'PM_US_TSU_M1'=M1_R0_US_TSU_PM,'PM_US_TSU_M2'=M1_R1_US_TSU_PM,'PM_US_TSU_M3'=M1_R2_US_TSU_PM,'PM_US_EDU_M4'=M2_R2_US_EDU_PM,'PM_US_B2B_M5'=M4_R2_US_B2B_PM,'PM_US_B2C_M6'=M3_R2_US_B2C_PM)
 
 #Output as CSV
 write.xlsx(All_US_TSU, file = paste0(output_directory, as.character(Today_Text), "_", "Outputs_US_TSU",".xlsx"))
+
+# Extract for MAU Model ---------------------------------------------------
+
+#Format Actuals into Extract for MAU Model 
+Extract_A <- SU %>% 
+  rename(Region = MAP_STRATEGY_REGION) %>% 
+  rename(UserType = MAP_CUSTOMER_TYPE) %>% 
+  rename(Platform = MAP_PLATFORM) %>% 
+  rename(SignupChannel = MAP_SIGNUP_SOURCE) %>% 
+  rename(Signups = SIGNUPS) %>% 
+  select(Date, Region, UserType, Platform, SignupChannel, Signups) %>%
+  mutate(EOM = ceiling_date(Date, "month") - days(1)) %>% 
+  group_by(EOM,Region,UserType,Platform,SignupChannel) %>% 
+  summarise(Signups = sum(Signups)) %>% 
+  rename(Date = EOM) %>%
+  filter(Date >= D_ActualStart) %>% 
+  mutate(Scenario = "Incl Marketing")
+
+#Checks
+sum(SU$SIGNUPS)
+sum(Extract_A$Signups)
+nrow(SU)
+nrow(Extract_A)
+
+#Output as CSV
+write.csv(Extract_A, file = paste0(output_directory, as.character(Today_Text), "_", "Signups_Actuals_Extract",".csv"), row.names = FALSE)
