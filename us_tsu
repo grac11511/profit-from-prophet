@@ -51,24 +51,6 @@ library(openxlsx)
 #Start timer
 All_start <- Sys.time()
 
-#Creating an alternative future function
-last_day <- function(date) {
-  lubridate::ceiling_date(date, "month") - days(1)
-}
-
-first_day <- function(date) {
-  lubridate::floor_date(date, "month")
-}
-
-future_months <- function(m, periods){
-  existing <- m$history.dates
-  days <- last_day(seq(first_day(max(m$history.dates)), length.out = periods, by = "month"))
-  days <- days[2:length(days)]
-  
-  future <- data.frame(ds = c(existing, days))
-  return(future)
-}
-
 #Transpose dataframe
 transpose_df <- function(df) {
   t_df <- data.table::transpose(df)
@@ -80,25 +62,27 @@ transpose_df <- function(df) {
   return(t_df)
 }
 
-
-# Toggles -----------------------------------------------------------------
-
-T_WeeklyMS <- 1 
-
-# Input & Data set Imports ------------------------------------------------
+# Dates -----------------------------------------------------------------
 
 Training_Period <- 1
 
 #Actual Start Date
 D_ActualStart <- as.Date("2022-01-01")
 
+#Date Marketing Spend Switches from Actual to Forecast 
+D_MS_AtoF <- as.Date("2025-02-28")
+
+#Forecast
+D_ForecastStart <- as.Date("2025-03-01")
+D_ForecastEnd <- as.Date("2025-12-31")
+
 #Holdout: Jan 2025 - Feb 2025
 #D_ForecastStart <- as.Date("2025-01-01")
 #D_ForecastEnd <- as.Date("2025-02-28")
 
 #Holdout: Jan 2024 - Dec 2024
-D_ForecastStart <- as.Date("2024-01-01")
-D_ForecastEnd <- as.Date("2024-12-31")
+#D_ForecastStart <- as.Date("2024-01-01")
+#D_ForecastEnd <- as.Date("2024-12-31")
 
 #Holdout: Apr 2024 - Dec 2024
 #D_ForecastStart <- as.Date("2024-04-01")
@@ -120,6 +104,8 @@ D_ForecastEnd <- as.Date("2024-12-31")
 Today <- now()
 Today_Text <- format(Today, "%Y.%m.%d")
 
+# Input & Data set Imports ------------------------------------------------
+
 #Working Directory
 getwd()
 
@@ -136,6 +122,8 @@ Campaigns <- fread(file=paste0(input_directory, "2025.03.18 Campaigns", ".csv"),
                   check.names = TRUE)
 US_MS_AF_W <- fread(file=paste0(input_directory, "2025.03.19 Looker_MS_US_A", ".csv"), 
                  check.names = TRUE)
+US_MS_F_M <- fread(file=paste0(input_directory, "2025.03.27 US_MS_F", ".csv"), 
+                    check.names = TRUE)
 US_Spring <- fread(file=paste0(input_directory, "2025.03.25 Spring", ".csv"), 
                    check.names = TRUE)
 US_Brand_R40_W <- fread(file=paste0(input_directory, "2025.03.25 Brand_40dayRolling copy", ".csv"), 
@@ -155,7 +143,7 @@ SU_A <- SU %>%
 
 #Filtering for US
 US_SU_A <- SU_A %>% 
-  filter(MAP_STRATEGY_REGION == "United States of America") %>% 
+  filter(MAP_STRATEGY_REGION == "US") %>% 
   rename(ds = Date) %>% 
   rename(y = SIGNUPS)
 
@@ -181,7 +169,7 @@ US_EDU_ORG_A <- US_SU_A %>%
 US_EDU_ORG_WEB_A <- US_SU_A %>% 
   filter(MAP_CUSTOMER_TYPE == "Edu") %>%
   filter(MAP_SIGNUP_SOURCE == "organic") %>%
-  filter(MAP_PLATFORM == "Web") %>% 
+  filter(MAP_PLATFORM == "web") %>% 
   select(ds, y) %>% 
   group_by(ds) %>% 
   summarise(y = sum(y)) %>% arrange(ds)
@@ -317,14 +305,20 @@ US_MS_AF_W <- US_MS_AF_W %>%
   complete(ds = full_seq(ds, 1)) %>% 
   fill(perMar) %>%
   mutate(Brand = Brand/7) %>%
-  mutate(perMar = perMar/7)
+  mutate(perMar = perMar/7) %>% 
+  filter(ds <= D_MS_AtoF)
 
-#Merge the actuals into the daily timeframe
-US_MS_AF_W <- merge(US_TF_AF,US_MS_AF_W,by = "ds",all.x = TRUE)
-US_MS_AF_W <- as_tibble(US_MS_AF_W)
+#Import and format Forecast Marketing Spend
+US_MS_F_M$ds <- as.Date(US_MS_F_M$ds, format="%m/%d/%Y")
 
-#Merge in Weekly Marketing Spend
-US_TSU_R <- merge(US_TSU_R,US_MS_AF_W,by = "ds",all.x = TRUE)
+US_MS_F_M <- US_MS_F_M %>% 
+  filter(ds > D_MS_AtoF)
+
+#Bind Actuals and Forecast
+US_MS <- rbind(US_MS_AF_W,US_MS_F_M)
+
+#Merge in Marketing Spend
+US_TSU_R <- merge(US_TSU_R,US_MS,by = "ds",all.x = TRUE)
 
 ############ Regressor: Spring Break (Actuals & Forecast)
 
@@ -350,6 +344,10 @@ US_Brand_R40_W <- as_tibble(US_Brand_R40_W)
 #Merge brand lag back into regressor table
 US_TSU_R <- US_TSU_R %>% 
   merge(US_Brand_R40_W, by.x="ds", by.y = "ds",all.x = TRUE)
+
+#Make all NAs 0
+US_TSU_R$perMar[is.na(US_TSU_R$perMar)] <- 0
+US_TSU_R$Brand[is.na(US_TSU_R$Brand)] <- 0
 
 # Forecasting: M1_R3_US_TSU (X: t, Holidays, perMar, Campaigns) ------------------------------------------
 
@@ -658,42 +656,6 @@ plot(M11_R3_US_EDU_ORG_WEB, M11_R3_US_EDU_ORG_WEB_F,
 #Plotting Components 
 prophet_plot_components(M11_R3_US_EDU_ORG_WEB, M11_R3_US_EDU_ORG_WEB_F)
 
-# Forecasting: M11_R4_US_EDU_ORG_WEB (X: t, Holidays, perMar, Campaigns, Spring) ------------------------------------------
-
-#Create model
-M11_R4_US_EDU_ORG_WEB <- prophet(changepoint.range = 1, 
-                            holidays = US_Holidays,
-                            daily.seasonality = FALSE,
-                            weekly.seasonality = 4,
-                            yearly.seasonality = 9.5,
-                            changepoint.prior.scale = 0.05,
-                            seasonality.prior.scale = 10,
-                            holidays.prior.scale = 10
-)
-M11_R4_US_EDU_ORG_WEB <- add_regressor(M11_R4_US_EDU_ORG_WEB, 'perMar')
-#M11_R4_US_EDU_ORG_WEB <- add_regressor(M11_R4_US_EDU_ORG_WEB, 'Brand')
-#M11_R4_US_EDU_ORG_WEB <- add_regressor(M11_R4_US_EDU_ORG_WEB, 'Brand_Lag')
-M11_R4_US_EDU_ORG_WEB <- add_regressor(M11_R4_US_EDU_ORG_WEB, 'Campaigns')
-M11_R4_US_EDU_ORG_WEB <- add_regressor(M11_R4_US_EDU_ORG_WEB, 'Spring_v2')
-#M11_R4_US_EDU_ORG_WEB <- add_regressor(M11_R4_US_EDU_ORG_WEB, 'CountryMGR')
-US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG_WEB,by="ds",all.x = TRUE)
-M11_R4_US_EDU_ORG_WEB <- fit.prophet(M11_R4_US_EDU_ORG_WEB, US_TSU_Train)
-
-#Performing the forecast
-M11_R4_US_EDU_ORG_WEB_F <- predict(M11_R4_US_EDU_ORG_WEB, US_TSU_R) 
-
-#Make negative values = 0 
-M11_R4_US_EDU_ORG_WEB_F <- M11_R4_US_EDU_ORG_WEB_F %>% 
-  mutate(yhat = if_else(yhat < 0,0,yhat))
-
-#Plotting Forecast
-plot(M11_R4_US_EDU_ORG_WEB, M11_R4_US_EDU_ORG_WEB_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M11_R4_US_EDU_ORG_WEB, M11_R4_US_EDU_ORG_WEB_F)
-
 # Forecasting: M12_R3_US_EDU_ORG_IOS (X: t, Holidays, perMar, Campaigns) ------------------------------------------
 
 #Create model
@@ -728,42 +690,6 @@ plot(M12_R3_US_EDU_ORG_IOS, M12_R3_US_EDU_ORG_IOS_F,
 
 #Plotting Components 
 prophet_plot_components(M12_R3_US_EDU_ORG_IOS, M12_R3_US_EDU_ORG_IOS_F)
-
-# Forecasting: M12_R4_US_EDU_ORG_IOS (X: t, Holidays, perMar, Campaigns, Spring) ------------------------------------------
-
-#Create model
-M12_R4_US_EDU_ORG_IOS <- prophet(changepoint.range = 1, 
-                                 holidays = US_Holidays,
-                                 daily.seasonality = FALSE,
-                                 weekly.seasonality = 4,
-                                 yearly.seasonality = 9.5,
-                                 changepoint.prior.scale = 0.05,
-                                 seasonality.prior.scale = 10,
-                                 holidays.prior.scale = 10
-)
-M12_R4_US_EDU_ORG_IOS <- add_regressor(M12_R4_US_EDU_ORG_IOS, 'perMar')
-#M12_R4_US_EDU_ORG_IOS <- add_regressor(M12_R4_US_EDU_ORG_IOS, 'Brand')
-#M12_R4_US_EDU_ORG_IOS <- add_regressor(M12_R4_US_EDU_ORG_IOS, 'Brand_Lag')
-M12_R4_US_EDU_ORG_IOS <- add_regressor(M12_R4_US_EDU_ORG_IOS, 'Campaigns')
-M12_R4_US_EDU_ORG_IOS <- add_regressor(M12_R4_US_EDU_ORG_IOS, 'Spring_v2')
-#M12_R4_US_EDU_ORG_IOS <- add_regressor(M12_R4_US_EDU_ORG_IOS, 'CountryMGR')
-US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG_IOS,by="ds",all.x = TRUE)
-M12_R4_US_EDU_ORG_IOS <- fit.prophet(M12_R4_US_EDU_ORG_IOS, US_TSU_Train)
-
-#Performing the forecast
-M12_R4_US_EDU_ORG_IOS_F <- predict(M12_R4_US_EDU_ORG_IOS, US_TSU_R) 
-
-#Make negative values = 0 
-M12_R4_US_EDU_ORG_IOS_F <- M12_R4_US_EDU_ORG_IOS_F %>% 
-  mutate(yhat = if_else(yhat < 0,0,yhat))
-
-#Plotting Forecast
-plot(M12_R4_US_EDU_ORG_IOS, M12_R4_US_EDU_ORG_IOS_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M12_R4_US_EDU_ORG_IOS, M12_R4_US_EDU_ORG_IOS_F)
 
 # Forecasting: M13_R3_US_EDU_ORG_AND (X: t, Holidays, perMar, Campaigns) ------------------------------------------
 
@@ -800,57 +726,24 @@ plot(M13_R3_US_EDU_ORG_AND, M13_R3_US_EDU_ORG_AND_F,
 #Plotting Components 
 prophet_plot_components(M13_R3_US_EDU_ORG_AND, M13_R3_US_EDU_ORG_AND_F)
 
-# Forecasting: M13_R4_US_EDU_ORG_AND (X: t, Holidays, perMar, Campaigns, Spring) ------------------------------------------
-
-#Create model
-M13_R4_US_EDU_ORG_AND <- prophet(changepoint.range = 1, 
-                                 holidays = US_Holidays,
-                                 daily.seasonality = FALSE,
-                                 weekly.seasonality = 4,
-                                 yearly.seasonality = 9.5,
-                                 changepoint.prior.scale = 0.05,
-                                 seasonality.prior.scale = 10,
-                                 holidays.prior.scale = 10
-)
-M13_R4_US_EDU_ORG_AND <- add_regressor(M13_R4_US_EDU_ORG_AND, 'perMar')
-#M13_R4_US_EDU_ORG_AND <- add_regressor(M13_R4_US_EDU_ORG_AND, 'Brand')
-#M13_R4_US_EDU_ORG_AND <- add_regressor(M13_R4_US_EDU_ORG_AND, 'Brand_Lag')
-M13_R4_US_EDU_ORG_AND <- add_regressor(M13_R4_US_EDU_ORG_AND, 'Campaigns')
-M13_R4_US_EDU_ORG_AND <- add_regressor(M13_R4_US_EDU_ORG_AND, 'Spring_v2')
-#M13_R4_US_EDU_ORG_AND <- add_regressor(M13_R4_US_EDU_ORG_AND, 'CountryMGR')
-US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG_AND,by="ds",all.x = TRUE)
-M13_R4_US_EDU_ORG_AND <- fit.prophet(M13_R4_US_EDU_ORG_AND, US_TSU_Train)
-
-#Performing the forecast
-M13_R4_US_EDU_ORG_AND_F <- predict(M13_R4_US_EDU_ORG_AND, US_TSU_R) 
-
-#Make negative values = 0 
-M13_R4_US_EDU_ORG_AND_F <- M13_R4_US_EDU_ORG_AND_F %>% 
-  mutate(yhat = if_else(yhat < 0,0,yhat))
-
-#Plotting Forecast
-plot(M13_R4_US_EDU_ORG_AND, M13_R4_US_EDU_ORG_AND_F, 
-     xlab="Year", 
-     ylab="Sign Ups") 
-
-#Plotting Components 
-prophet_plot_components(M13_R4_US_EDU_ORG_AND, M13_R4_US_EDU_ORG_AND_F)
-
 # Model List --------------------------------------------------------------
 
 #End timer
 F_end <- Sys.time() - F_start
 
-#Create Model List 
+#Full Model List 
 M_names <- c("M1_R3_US_TSU", 
              "M1_RX_US_TSU_TO1","M1_RX_US_TSU_TO2","M1_RX_US_TSU_TO3","M1_RX_US_TSU_TO4","M1_RX_US_TSU_TO5",
              "M5_R3_US_EDU_ORG", "M5_R4_US_EDU_ORG", 
-             "M11_R3_US_EDU_ORG_WEB","M11_R4_US_EDU_ORG_WEB",
-             "M12_R3_US_EDU_ORG_IOS","M12_R4_US_EDU_ORG_IOS",
-             "M13_R3_US_EDU_ORG_AND","M13_R4_US_EDU_ORG_AND"
+             "M11_R3_US_EDU_ORG_WEB","M12_R3_US_EDU_ORG_IOS","M13_R3_US_EDU_ORG_AND"
 )
 
 M_num <- length(M_names)
+
+#Extract Model List 
+EXT_names <- c("M11_R3_US_EDU_ORG_WEB",
+               "M12_R3_US_EDU_ORG_IOS",
+               "M13_R3_US_EDU_ORG_AND")
 
 # Regression Metrics ------------------------------------------------------
 
@@ -1000,6 +893,61 @@ paste0("Excellent. It has taken ",format(F_end, digits = 2)," to forecast all mo
 
 # Extract for MAU Model ---------------------------------------------------
 
+# Initialize an empty list to store data for forecasts
+EXT_list <- list()
+
+#Loop through each model and retrieve forecasts
+for (m in EXT_names) {
+  EXT_data <- get(paste0(m, "_F"))
+  EXT_list[[m]] <- EXT_data$yhat
+}
+
+#Compile table of forecasts from all models 
+EXT_F <- tibble::tibble(M11_R3_US_EDU_ORG_WEB_F$ds,!!!EXT_list)
+
+EXT_F <- EXT_F %>% 
+  rename(ds = `M11_R3_US_EDU_ORG_WEB_F$ds`)
+
+EXT_F$ds <- as.Date(as.POSIXct(EXT_F$ds, 'GMT'))
+
+#Extract and format forecasts 
+US_EDU_ORG_WEB_EXT <- EXT_F %>% 
+  select(ds,M11_R3_US_EDU_ORG_WEB) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "Edu") %>% 
+  mutate(SignupChannel = "organic") %>%  
+  mutate(Platform = "web") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Date = ds) %>% 
+  rename(Signups = M11_R3_US_EDU_ORG_WEB) %>%
+  select(Date,Region,UserType,Platform,SignupChannel,Signups,Scenario) %>%
+  filter(Date >= D_ForecastStart)
+
+US_EDU_ORG_IOS_EXT <- EXT_F %>% 
+  select(ds,M12_R3_US_EDU_ORG_IOS) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "Edu") %>% 
+  mutate(SignupChannel = "organic") %>%  
+  mutate(Platform = "iOS") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Date = ds) %>% 
+  rename(Signups = M12_R3_US_EDU_ORG_IOS) %>%
+  select(Date,Region,UserType,Platform,SignupChannel,Signups,Scenario) %>%
+  filter(Date >= D_ForecastStart)
+
+#EDU_ORG_AND
+US_EDU_ORG_AND_EXT <- EXT_F %>% 
+  select(ds,M13_R3_US_EDU_ORG_AND) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "Edu") %>% 
+  mutate(SignupChannel = "organic") %>%  
+  mutate(Platform = "Android") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Date = ds) %>% 
+  rename(Signups = M13_R3_US_EDU_ORG_AND) %>%
+  select(Date,Region,UserType,Platform,SignupChannel,Signups,Scenario) %>%
+  filter(Date >= D_ForecastStart)
+
 #Format Actuals into Extract for MAU Model 
 Extract_A <- SU %>% 
   rename(Region = MAP_STRATEGY_REGION) %>% 
@@ -1008,21 +956,28 @@ Extract_A <- SU %>%
   rename(SignupChannel = MAP_SIGNUP_SOURCE) %>% 
   rename(Signups = SIGNUPS) %>% 
   select(Date, Region, UserType, Platform, SignupChannel, Signups) %>%
-  mutate(EOM = ceiling_date(Date, "month") - days(1)) %>% 
-  group_by(EOM,Region,UserType,Platform,SignupChannel) %>% 
-  summarise(Signups = sum(Signups)) %>% 
-  rename(Date = EOM) %>%
-  filter(Date >= D_ActualStart) %>% 
+  filter(Date >= D_ActualStart) %>%
+  filter(Date < D_ForecastStart) %>% 
   mutate(Scenario = "Incl Marketing") 
 
-#Use MAU model terms 
-Extract_A$Platform <- gsub("Web", "web", Extract_A$Platform)
+#Merge in Forecasts
+Extract_AF <- do.call("rbind", list(Extract_A,
+                                    US_EDU_ORG_WEB_EXT,US_EDU_ORG_IOS_EXT,US_EDU_ORG_AND_EXT))
 
 #Checks
-sum(SU$SIGNUPS)
-sum(Extract_A$Signups)
-nrow(SU)
-nrow(Extract_A)
+nrow(Extract_AF)
+
+#Transform from daily to end of month data 
+Extract_AF <- Extract_AF %>%
+  mutate(EOM = ceiling_date(Date, "month") - days(1)) %>% 
+  group_by(EOM,Region,UserType,Platform,SignupChannel,Scenario) %>% 
+  summarise(Signups = sum(Signups)) %>% 
+  rename(Date = EOM) %>% 
+  select(Date, Region, UserType, Platform, SignupChannel, Signups, Scenario)
+
+#Checks
+nrow(Extract_A)+nrow(US_EDU_ORG_WEB_EXT)+nrow(US_EDU_ORG_IOS_EXT)+nrow(US_EDU_ORG_AND_EXT)
+nrow(Extract_AF)
 
 #Output as CSV
-write.csv(Extract_A, file = paste0(output_directory, as.character(Today_Text), "_", "Signups_Actuals_Extract",".csv"), row.names = FALSE)
+write.csv(Extract_AF, file = paste0(output_directory, as.character(Today_Text), "_", "Signups_Extract",".csv"), row.names = FALSE)
