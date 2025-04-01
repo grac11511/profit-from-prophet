@@ -64,17 +64,17 @@ transpose_df <- function(df) {
 
 # Lists -------------------------------------------------------------------
 
-#List of Actuals
+#Forecast Splits 
 B_names <- c("US_TSU","US_EDU","US_B2C","US_B2B","US_EDU_ORG","US_ORG","US_MAR",
              "US_EDU_ORG_WEB","US_EDU_ORG_IOS","US_EDU_ORG_AND","US_EDU_MAR_WEB",
              "US_B2C_ORG_WEB","US_B2C_ORG_IOS","US_B2C_ORG_AND","US_B2C_MAR_WEB",
              "US_B2B_ORG_WEB","US_B2B_MAR_WEB" 
 )
 
-#Create Actuals List Names 
+#Actuals 
 A_names <- paste0(B_names, "_A")
 
-#List of Models in Output
+#Models 
 M_names <- c("M1_R3_US_TSU","M3_R3_US_B2C","M4_R3_US_B2B",
              "M11_R3_US_EDU_ORG_WEB","M12_R3_US_EDU_ORG_IOS","M13_R3_US_EDU_ORG_AND","M14_R3_US_EDU_MAR_WEB",
              "M17_R3_US_B2C_ORG_WEB","M18_R3_US_B2C_ORG_IOS","M19_R3_US_B2C_ORG_AND","M20_R3_US_B2C_MAR_WEB",
@@ -82,27 +82,31 @@ M_names <- c("M1_R3_US_TSU","M3_R3_US_B2C","M4_R3_US_B2B",
              "M29_R3_US_ORG","M30_R3_US_MAR"
 )
 
+#Performance Metrics  
+ape_names <- paste0(M_names, "_APE")
+
+#Coefficients
+Co_names <- paste0(M_names, "_Co")
+
 #Model Count
 M_num <- length(M_names)
 
-#Extract Model Reference List 
+#Models in Extract to MAU model
 EXT_names <- c("M11_R3_US_EDU_ORG_WEB","M12_R3_US_EDU_ORG_IOS","M13_R3_US_EDU_ORG_AND","M14_R3_US_EDU_MAR_WEB",
                "M17_R3_US_B2C_ORG_WEB","M18_R3_US_B2C_ORG_IOS","M19_R3_US_B2C_ORG_AND","M20_R3_US_B2C_MAR_WEB",
                "M23_R3_US_B2B_ORG_WEB","M26_R3_US_B2B_MAR_WEB"
 )
 
-#List of Extracts
+#Extract Forecast Splits
 EXT_models <- c("US_EDU_ORG_WEB","US_EDU_ORG_IOS","US_EDU_ORG_AND","US_EDU_MAR_WEB",
                 "US_B2C_ORG_WEB","US_B2C_ORG_IOS","US_B2C_ORG_AND","US_B2C_MAR_WEB",
                 "US_B2B_ORG_WEB","US_B2B_MAR_WEB"
 )
 
-#Create Extract List Names 
+#Extract Names
 EXT_labels <- paste0(EXT_models, "_EXT")
 
 # Dates -----------------------------------------------------------------
-
-Training_Period <- 1
 
 #Actual Start Date
 D_ActualStart <- as.Date("2022-01-01")
@@ -144,9 +148,6 @@ Today_Text <- format(Today, "%Y.%m.%d")
 
 # Input & Data set Imports ------------------------------------------------
 
-#Working Directory
-getwd()
-
 #Set Working Directory
 input_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/02. Prophet Inputs/"
 output_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/03. Prophet Outputs/"
@@ -173,6 +174,7 @@ R <- fread(file=paste0(input_directory, "2025.03.26 Regressors excl. Hols", ".cs
 
 ############ y: Paid Sign-Ups
 
+#Format Dates
 SU$Date <- as.Date(SU$Date, format="%m/%d/%Y")
 
 #Filtering for relevant dates (2022-2025)
@@ -185,7 +187,7 @@ US_SU_A <- SU_A %>%
   rename(ds = Date) %>% 
   rename(y = SIGNUPS)
 
-#Filtering for dimensions 
+#Filtering for dimension forecast splits  
 US_TSU_A <- US_SU_A
 
 US_EDU_A <- US_SU_A %>% 
@@ -257,7 +259,7 @@ US_B2B_MAR_WEB_A <- US_SU_A %>%
   filter(MAP_SIGNUP_SOURCE == "marketing") %>%
   filter(MAP_PLATFORM == "web")
 
-# Summarise each list of actuals by date
+#Format and structure for each split of actuals 
 for (A_name in A_names) {
   df <- get(A_name) %>%
     select(ds, y) %>%
@@ -267,7 +269,7 @@ for (A_name in A_names) {
   assign(A_name, df)  
 }
 
-#Filtering for Actuals used for Forecasting for each
+#Filter for actuals period for each split of actuals
 for (B_name in B_names) {
   df_A <- get(paste0(B_name, "_A"))  
   filtered_df <- df_A %>% filter(ds <= D_ForecastStart - 1)
@@ -276,7 +278,7 @@ for (B_name in B_names) {
 
 ############ Regressor: Public Holidays (Actuals & Forecast)
 
-#Format to date
+#Format date
 Holidays$ds <- as.Date(Holidays$ds, format = "%m/%d/%Y")
 
 #Filter out NAs 
@@ -293,31 +295,31 @@ US_Holidays <- Holidays %>%
 US_TSU_R <- seq(from = as.Date(D_ActualStart, format =  "%Y-%m-%d"),
                 to = as.Date(D_ForecastEnd, format =  "%Y-%m-%d"),
                 by = "1 days")
-US_TSU_R <- as_tibble(US_TSU_R)
 
-#Get numerical month and year for each date for actuals period timeframe
+#Format
+US_TSU_R <- as_tibble(US_TSU_R)
 US_TSU_R <- US_TSU_R %>% 
   rename(ds = value)
 
 ############ Regressor: Campaign Dates (Actuals & Forecast)
 
-#Format dates
+#Format
 Campaigns$ds <- as.Date(Campaigns$ds, format="%m/%d/%y")
-
-#Format as tibble
 Campaigns <- as_tibble(Campaigns)
 
 #Merge into regressor table
 US_TSU_R <- US_TSU_R %>% 
   merge(Campaigns, by.x="ds", by.y = "ds",all.x = TRUE)
 
-#Check total campaign days 
-sum(US_TSU_R$Campaigns)
+#Check: Total Campaign Days 
+C_CampaignDays <- sum(US_TSU_R$Campaigns)
 
 ############ Regressor: Country Manager (Actuals & Forecast)
 
+#Assign country manager start date 
 D_CountryManager <- "2020-01-01"
 
+#Create boolean for country manager
 US_TSU_R <- US_TSU_R %>% 
   mutate(CountryMGR = ifelse(ds >= D_CountryManager, 1, 0)) 
 
@@ -327,13 +329,13 @@ US_TSU_R <- US_TSU_R %>%
 US_TF_AF <- seq(from = as.Date(D_ActualStart, format =  "%Y-%m-%d"),
                to = as.Date(D_ForecastEnd, format =  "%Y-%m-%d"),
                by = "1 days")
-US_TF_AF <- as_tibble(US_TF_AF)
 
-#Get numerical month and year for each date for actuals period timeframe
+#Format
+US_TF_AF <- as_tibble(US_TF_AF)
 US_TF_AF <- US_TF_AF %>% 
   rename(ds = value)
 
-#Tidy data
+#Clean data
 US_MS_AF_W <- US_MS_AF_W %>% 
   filter(!grepl("Total Spend", Brand)) %>% 
   rename(perMar = PerMar) %>% 
@@ -358,13 +360,14 @@ US_MS_AF_W <- US_MS_AF_W %>%
 #Import and format Forecast Marketing Spend
 US_MS_F_M$ds <- as.Date(US_MS_F_M$ds, format="%m/%d/%Y")
 
+#Filter for the for the date the marketing spend data switches into budget
 US_MS_F_M <- US_MS_F_M %>% 
   filter(ds > D_MS_AtoF)
 
-#Bind Actuals and Forecast
+#Bind actuals and forecast marketing spend
 US_MS <- rbind(US_MS_AF_W,US_MS_F_M)
 
-#Merge in Marketing Spend
+#Merge in Marketing Spend to regressor table
 US_TSU_R <- merge(US_TSU_R,US_MS,by = "ds",all.x = TRUE)
 
 ############ Regressor: Spring Break (Actuals & Forecast)
@@ -379,16 +382,18 @@ US_Spring <- as_tibble(US_Spring)
 US_TSU_R <- US_TSU_R %>% 
   merge(US_Spring, by.x="ds", by.y = "ds",all.x = TRUE)
 
-#Check total Spring Break days 
-sum(US_TSU_R$Spring)
+#Check: Total Spring Break Days 
+C_SpringDays <- sum(US_TSU_R$Spring)
 
 ############ Regressor: 40D Lag Brand (Actuals & Forecast)
 
-#Format
+#Format date 
 US_Brand_R40_W$ds <- as.Date(US_Brand_R40_W$ds, format="%m/%d/%Y")
+
+#Format tibble
 US_Brand_R40_W <- as_tibble(US_Brand_R40_W)
 
-#Merge brand lag back into regressor table
+#Merge brand lag into regressor table
 US_TSU_R <- US_TSU_R %>% 
   merge(US_Brand_R40_W, by.x="ds", by.y = "ds",all.x = TRUE)
 
@@ -398,13 +403,16 @@ US_TSU_R$Brand[is.na(US_TSU_R$Brand)] <- 0
 
 ############ Regressor: Total Marketing Spend (Actuals & Forecast)
 
+#Create total marketing spend regressor
 US_TSU_R <- US_TSU_R %>% 
   mutate(TMarketingSpend = perMar + Brand)
 
-# Forecasting: M1_R3_US_TSU (X: t, Holidays, perMar, Campaigns) ------------------------------------------
+# Start Forecast Timer ----------------------------------------------------
 
 #Start timer
 F_start <- Sys.time()
+
+# Forecasting: M1_R3_US_TSU (X: t, Holidays, perMar, Campaigns) ------------------------------------------
 
 #Create model
 M1_R3_US_TSU <- prophet(changepoint.range = 1, 
@@ -416,11 +424,8 @@ M1_R3_US_TSU <- prophet(changepoint.range = 1,
                          seasonality.prior.scale = 10,
                          holidays.prior.scale = 10
 )
-#M1_R3_US_TSU <- add_country_holidays(M1_R3_US_TSU, country_name = 'US')
 M1_R3_US_TSU <- add_regressor(M1_R3_US_TSU, 'perMar')
-#M1_R3_US_TSU <- add_regressor(M1_R3_US_TSU, 'Brand')
 M1_R3_US_TSU <- add_regressor(M1_R3_US_TSU, 'Campaigns')
-#M1_R3_US_TSU <- add_regressor(M1_R3_US_TSU, 'CountryMGR')
 US_TSU_Train <- merge(US_TSU_R,US_TSU,by="ds",all.x = TRUE)
 M1_R3_US_TSU <- fit.prophet(M1_R3_US_TSU, US_TSU_Train)
 
@@ -504,10 +509,7 @@ M11_R3_US_EDU_ORG_WEB <- prophet(changepoint.range = 1,
                             holidays.prior.scale = 10
 )
 M11_R3_US_EDU_ORG_WEB <- add_regressor(M11_R3_US_EDU_ORG_WEB, 'perMar')
-#M11_R3_US_EDU_ORG_WEB <- add_regressor(M11_R3_US_EDU_ORG_WEB, 'Brand')
 M11_R3_US_EDU_ORG_WEB <- add_regressor(M11_R3_US_EDU_ORG_WEB, 'Campaigns')
-#M11_R3_US_EDU_ORG_WEB <- add_regressor(M11_R3_US_EDU_ORG_WEB, 'Spring')
-#M11_R3_US_EDU_ORG_WEB <- add_regressor(M11_R3_US_EDU_ORG_WEB, 'CountryMGR')
 US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG_WEB,by="ds",all.x = TRUE)
 M11_R3_US_EDU_ORG_WEB <- fit.prophet(M11_R3_US_EDU_ORG_WEB, US_TSU_Train)
 
@@ -539,10 +541,7 @@ M12_R3_US_EDU_ORG_IOS <- prophet(changepoint.range = 1,
                                  holidays.prior.scale = 10
 )
 M12_R3_US_EDU_ORG_IOS <- add_regressor(M12_R3_US_EDU_ORG_IOS, 'perMar')
-#M12_R3_US_EDU_ORG_IOS <- add_regressor(M12_R3_US_EDU_ORG_IOS, 'Brand')
 M12_R3_US_EDU_ORG_IOS <- add_regressor(M12_R3_US_EDU_ORG_IOS, 'Campaigns')
-#M12_R3_US_EDU_ORG_IOS <- add_regressor(M12_R3_US_EDU_ORG_IOS, 'Spring')
-#M12_R3_US_EDU_ORG_IOS <- add_regressor(M12_R3_US_EDU_ORG_IOS, 'CountryMGR')
 US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG_IOS,by="ds",all.x = TRUE)
 M12_R3_US_EDU_ORG_IOS <- fit.prophet(M12_R3_US_EDU_ORG_IOS, US_TSU_Train)
 
@@ -574,10 +573,7 @@ M13_R3_US_EDU_ORG_AND <- prophet(changepoint.range = 1,
                                  holidays.prior.scale = 10
 )
 M13_R3_US_EDU_ORG_AND <- add_regressor(M13_R3_US_EDU_ORG_AND, 'perMar')
-#M13_R3_US_EDU_ORG_AND <- add_regressor(M13_R3_US_EDU_ORG_AND, 'Brand')
 M13_R3_US_EDU_ORG_AND <- add_regressor(M13_R3_US_EDU_ORG_AND, 'Campaigns')
-#M13_R3_US_EDU_ORG_AND <- add_regressor(M13_R3_US_EDU_ORG_AND, 'Spring')
-#M13_R3_US_EDU_ORG_AND <- add_regressor(M13_R3_US_EDU_ORG_AND, 'CountryMGR')
 US_TSU_Train <- merge(US_TSU_R,US_EDU_ORG_AND,by="ds",all.x = TRUE)
 M13_R3_US_EDU_ORG_AND <- fit.prophet(M13_R3_US_EDU_ORG_AND, US_TSU_Train)
 
@@ -609,10 +605,7 @@ M14_R3_US_EDU_MAR_WEB <- prophet(changepoint.range = 1,
                                  holidays.prior.scale = 10
 )
 M14_R3_US_EDU_MAR_WEB <- add_regressor(M14_R3_US_EDU_MAR_WEB, 'perMar')
-#M14_R3_US_EDU_MAR_WEB <- add_regressor(M14_R3_US_EDU_MAR_WEB, 'Brand')
 M14_R3_US_EDU_MAR_WEB <- add_regressor(M14_R3_US_EDU_MAR_WEB, 'Campaigns')
-#M14_R3_US_EDU_MAR_WEB <- add_regressor(M14_R3_US_EDU_MAR_WEB, 'Spring')
-#M14_R3_US_EDU_MAR_WEB <- add_regressor(M14_R3_US_EDU_MAR_WEB, 'CountryMGR')
 US_TSU_Train <- merge(US_TSU_R,US_EDU_MAR_WEB,by="ds",all.x = TRUE)
 M14_R3_US_EDU_MAR_WEB <- fit.prophet(M14_R3_US_EDU_MAR_WEB, US_TSU_Train)
 
@@ -835,11 +828,8 @@ M29_R3_US_ORG <- prophet(changepoint.range = 1,
                         seasonality.prior.scale = 10,
                         holidays.prior.scale = 10
 )
-#M29_R3_US_ORG <- add_country_holidays(M29_R3_US_ORG, country_name = 'US')
 M29_R3_US_ORG <- add_regressor(M29_R3_US_ORG, 'perMar')
-#M29_R3_US_ORG <- add_regressor(M29_R3_US_ORG, 'Brand')
 M29_R3_US_ORG <- add_regressor(M29_R3_US_ORG, 'Campaigns')
-#M29_R3_US_ORG <- add_regressor(M29_R3_US_ORG, 'CountryMGR')
 US_TSU_Train <- merge(US_TSU_R,US_ORG,by="ds",all.x = TRUE)
 M29_R3_US_ORG <- fit.prophet(M29_R3_US_ORG, US_TSU_Train)
 
@@ -866,11 +856,8 @@ M30_R3_US_MAR <- prophet(changepoint.range = 1,
                         seasonality.prior.scale = 10,
                         holidays.prior.scale = 10
 )
-#M30_R3_US_MAR <- add_country_holidays(M30_R3_US_MAR, country_name = 'US')
 M30_R3_US_MAR <- add_regressor(M30_R3_US_MAR, 'perMar')
-#M30_R3_US_MAR <- add_regressor(M30_R3_US_MAR, 'Brand')
 M30_R3_US_MAR <- add_regressor(M30_R3_US_MAR, 'Campaigns')
-#M30_R3_US_MAR <- add_regressor(M30_R3_US_MAR, 'CountryMGR')
 US_TSU_Train <- merge(US_TSU_R,US_MAR,by="ds",all.x = TRUE)
 M30_R3_US_MAR <- fit.prophet(M30_R3_US_MAR, US_TSU_Train)
 
@@ -885,6 +872,8 @@ plot(M30_R3_US_MAR, M30_R3_US_MAR_F,
 #Plotting Components 
 prophet_plot_components(M30_R3_US_MAR, M30_R3_US_MAR_F)
 
+# End Forecast Timer ------------------------------------------------------
+
 #End timer
 F_end <- Sys.time() - F_start
 
@@ -893,7 +882,7 @@ F_end <- Sys.time() - F_start
 #Start timer
 PM_start <- Sys.time()
 
-#For Loop to calculate metrics for each model 
+#Perform cross validation and calculate performance metrics for each model
 for (model_name in M_names) {
   
   #Perform cross-validation
@@ -917,10 +906,7 @@ for (model_name in M_names) {
   assign(paste0(model_name, "_APE"), model_ape)
 }
 
-#Retrieve metric dataset names 
-ape_names <- paste0(M_names, "_APE")
-
-#Assign first model metrics only 
+#Initialize dataset with the first model
 All_APE <- get(ape_names[1])
 
 #Merge and compile metrics from all models
@@ -928,13 +914,13 @@ for (ape_name in ape_names[-1]) {
   All_APE <- merge(All_APE, get(ape_name), by="Metric", all=TRUE)
 }
 
-#Singular Output
+#Singular metrics output
 #M4_R3_US_B2B_CV = cross_validation(model = M4_R3_US_B2B, units = "days", horizon = 180, period = 30)
 #M4_R3_US_B2B_PM = performance_metrics(M4_R3_US_B2B_CV)
 #M4_R3_US_B2B_APE <- transpose_df(tail(M4_R3_US_B2B_PM,1))
 #M4_R3_US_B2B_APE <- M4_R3_US_B2B_APE %>% rename(Metric = rowname) %>% rename(M4_R3_US_B2B = 2) 
 
-#Sort by Metrics
+#Reorder Metrics
 All_APE <- All_APE %>% 
   arrange(factor(Metric, levels = c('mape','mdape','smape','mae')))
 
@@ -946,22 +932,25 @@ PM_end <- Sys.time() - PM_start
 #Start timer
 Co_start <- Sys.time()
 
-#For Loop to retrieve coefficients for every model 
+#Retrieve coefficients for each model 
 for (dataset_name in M_names) {
+  
+  #Retrieve model coefficients
   current_dataset <- get(dataset_name)
   current_co <- current_dataset$params$beta %*% as.matrix(current_dataset$train.component.cols)
+  
+  #Format coefficients
   current_co <- transpose_df(as_tibble(current_co))
   current_co <- current_co %>% 
     rename(Regressor = rowname) %>%
     rename(!!paste0(dataset_name) := `1`)  
+  
+  #Collate into table
   current_co <- rbind(current_co, list('Intercept', current_dataset$params$m))
   assign(paste0(dataset_name, "_Co"), current_co)
 }
 
-#Retrieve Coefficient Names
-Co_names <- paste0(M_names, "_Co")
-
-#Assign first dataset only 
+#Initialize dataset with first model only 
 All_Co <- get(Co_names[1])
 
 #Merge and compile all model coefficients
@@ -970,18 +959,10 @@ for (i in 2:length(Co_names)) {
   All_Co <- merge(All_Co, current_co, by="Regressor", all=TRUE)
 }
 
-#Sort by Regressors
+#Reorder Regressors
 All_Co <- All_Co %>% 
-  arrange(factor(Regressor, levels = c('Intercept',
-                                       'perMar',
-                                       'Brand',
-                                       'Campaigns',
-                                       'Spring_v2',
-                                       'additive_terms',
-                                       'multiplicative_terms',
-                                       'extra_regressors_additive',
-                                       'weekly',
-                                       'yearly')))
+  arrange(factor(Regressor, levels = c('Intercept','perMar','Brand','Campaigns','Spring_v2',
+                                       'additive_terms','multiplicative_terms','extra_regressors_additive','weekly','yearly')))
 
 #End timer
 Co_end <- Sys.time() - Co_start
@@ -1019,22 +1000,17 @@ for (model in M_names) {
 #Compile table of forecasts from all models 
 All_F <- tibble::tibble(M1_R3_US_TSU_F$ds,!!!tibble_data)
 
+#Format
 All_F <- All_F %>% 
   rename(ds = `M1_R3_US_TSU_F$ds`)
 
-#Output Tabs Lists
+#Combine all output tabs 
 All_US_TSU <- list('All_A'=All_A,'All_F'=All_F,'All_Co'=All_Co
                    ,'All_APE'=All_APE
                    )
 
 #Output as CSV
 write.xlsx(All_US_TSU, file = paste0(output_directory, as.character(Today_Text), "_", "Outputs_US_TSU",".xlsx"))
-
-#End timer
-All_end <- Sys.time() - All_start
-
-#Time taken
-paste0("Excellent. It has taken ",format(F_end, digits = 2)," to forecast all models (",format(All_end, digits = 2)," to run the entire script). That is ",format(All_end/M_num, digits = 2),"/model.")
 
 # Extract for MAU Model ---------------------------------------------------
 
@@ -1050,9 +1026,9 @@ for (m in EXT_names) {
 #Compile table of forecasts from all models 
 EXT_F <- tibble::tibble(M11_R3_US_EDU_ORG_WEB_F$ds,!!!EXT_list)
 
+#Format
 EXT_F <- EXT_F %>% 
   rename(ds = `M11_R3_US_EDU_ORG_WEB_F$ds`)
-
 EXT_F$ds <- as.Date(as.POSIXct(EXT_F$ds, 'GMT'))
 
 #Extract and format forecasts 
@@ -1146,7 +1122,7 @@ US_B2B_MAR_WEB_EXT <- EXT_F %>%
   mutate(Scenario = "Incl Marketing") %>%
   rename(Signups = M26_R3_US_B2B_MAR_WEB) 
 
-#Format each extract
+#Format each extract 
 for (name in EXT_labels) {
   df <- get(name) %>%
     rename(Date = ds) %>%
@@ -1155,7 +1131,7 @@ for (name in EXT_labels) {
   assign(name, df)  
 }
 
-#Format Actuals into Extract for MAU Model 
+#Format actuals 
 Extract_A <- SU %>% 
   rename(Region = MAP_STRATEGY_REGION) %>% 
   rename(UserType = MAP_CUSTOMER_TYPE) %>% 
@@ -1167,11 +1143,11 @@ Extract_A <- SU %>%
   filter(Date < D_ForecastStart) %>% 
   mutate(Scenario = "Incl Marketing") 
 
-#Merge in Forecasts
+#Merge in forecasts with actuals
 Extract_AF <- do.call("rbind", c(list(Extract_A), mget(EXT_labels)))
 
-#Checks
-nrow(Extract_AF)
+#Check: # of rows in Daily Extract 
+C_DailyExtractRows <- nrow(Extract_AF)
 
 #Transform from daily to end of month data 
 Extract_AF <- Extract_AF %>%
@@ -1181,8 +1157,20 @@ Extract_AF <- Extract_AF %>%
   rename(Date = EOM) %>% 
   select(Date, Region, UserType, Platform, SignupChannel, Signups, Scenario)
 
-#Checks
-nrow(Extract_AF)
+#Checks: # of rows in Monthly Extract 
+C_MonthlyExtractRows <- nrow(Extract_AF)
 
 #Output as CSV
 write.csv(Extract_AF, file = paste0(output_directory, as.character(Today_Text), "_", "Signups_Extract",".csv"), row.names = FALSE)
+
+#End timer
+All_end <- Sys.time() - All_start
+
+#Time taken
+paste0("Excellent. It has taken ",format(F_end, digits = 2)," to forecast all models (",format(All_end, digits = 2)," to run the entire script). That is ",format(All_end/M_num, digits = 2),"/model.")
+
+#Checks
+C_SpringDays
+C_CampaignDays
+C_DailyExtractRows
+C_MonthlyExtractRows
