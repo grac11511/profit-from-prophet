@@ -79,8 +79,7 @@ M_names <- c("M1_R3_US_TSU","M3_R3_US_B2C","M4_R3_US_B2B",
              "M11_R3_US_EDU_ORG_WEB","M12_R3_US_EDU_ORG_IOS","M13_R3_US_EDU_ORG_AND","M14_R3_US_EDU_MAR_WEB",
              "M17_R3_US_B2C_ORG_WEB","M18_R3_US_B2C_ORG_IOS","M19_R3_US_B2C_ORG_AND","M20_R3_US_B2C_MAR_WEB",
              "M23_R3_US_B2B_ORG_WEB","M26_R3_US_B2B_MAR_WEB",
-             "M29_R3_US_ORG","M30_R3_US_MAR",
-             "M1_RX_US_TSU_TO1","M1_RX_US_TSU_TO2"
+             "M29_R3_US_ORG","M30_R3_US_MAR"
 )
 
 #Model Count
@@ -149,8 +148,8 @@ Today_Text <- format(Today, "%Y.%m.%d")
 getwd()
 
 #Set Working Directory
-input_directory <- "/Users/grac/Documents/Regression Models/Inputs/"
-output_directory <- "/Users/grac/Documents/Regression Models/Outputs/"
+input_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/02. Prophet Inputs/"
+output_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/03. Prophet Outputs/"
 
 #Import Data sets
 SU <- fread(file=paste0(input_directory, "2025.03.27 Signups", ".csv"), 
