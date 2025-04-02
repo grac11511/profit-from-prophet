@@ -1,0 +1,797 @@
+# Package Installation ----------------------------------------------------
+
+#Installing Packages
+
+#Tables
+install.packages('data.table') #Enhanced version of data frame
+install.packages('tibble') #Simple data frames
+
+#Cleaning & Transformation
+install.packages('lubridate') #Date and time transformations
+install.packages('magrittr') #%>% 
+install.packages('stringr') #String mutations
+install.packages('plyr') 
+install.packages('dplyr') 
+install.packages('tidyr') 
+install.packages('tidyverse') 
+install.packages('mgsub') #Multiple Text Substitution 
+install.packages("DatabaseConnector") #eoMonth function
+
+#Modelling
+install.packages('prophet')
+
+#Charting
+install.packages('ggplot2')
+
+#Exporting
+install.packages('openxlsx')
+
+#Running Packages
+library(plyr)
+library(data.table)
+library(lubridate)
+library(magrittr)
+library(dplyr)
+library(stringr)
+library(tibble)
+library(tidyr)
+library(tidyverse)
+library(ggplot2)
+library(prophet)
+library(mgsub)
+library(DatabaseConnector) #why is this not loading
+library(openxlsx)
+
+# Functions ---------------------------------------------------------------
+
+#Start timer
+All_start <- Sys.time()
+
+#Transpose dataframe
+transpose_df <- function(df) {
+  t_df <- data.table::transpose(df)
+  colnames(t_df) <- rownames(df)
+  rownames(t_df) <- colnames(df)
+  t_df <- t_df %>%
+    tibble::rownames_to_column(.data = .) %>%
+    tibble::as_tibble(.)
+  return(t_df)
+}
+
+# Dates -----------------------------------------------------------------
+
+#Actual Start Date
+D_ActualStart <- as.Date("2022-01-01")
+
+#Date Marketing Spend Switches from Actual to Forecast 
+D_MS_AtoF <- as.Date("2025-02-28")
+
+#Forecast
+#D_ForecastStart <- as.Date("2025-03-01")
+#D_ForecastEnd <- as.Date("2025-12-31")
+
+#Holdout: Jan 2025 - Feb 2025
+#D_ForecastStart <- as.Date("2025-01-01")
+#D_ForecastEnd <- as.Date("2025-02-28")
+
+#Holdout: Jan 2024 - Dec 2024
+D_ForecastStart <- as.Date("2024-01-01")
+D_ForecastEnd <- as.Date("2024-12-31")
+
+#Holdout: Apr 2024 - Dec 2024
+#D_ForecastStart <- as.Date("2024-04-01")
+#D_ForecastEnd <- as.Date("2024-12-31")
+
+#Holdout: Jul 2024 - Dec 2024
+#D_ForecastStart <- as.Date("2024-07-01")
+#D_ForecastEnd <- as.Date("2024-12-31")
+
+#Holdout: Oct 2024 - Dec 2024
+#D_ForecastStart <- as.Date("2024-10-01")
+#D_ForecastEnd <- as.Date("2024-12-31")
+
+#Holdout: Mar 2024 - Dec 2024
+#D_ForecastStart <- as.Date("2024-03-01")
+#D_ForecastEnd <- as.Date("2024-12-31")
+
+#Today 
+Today <- now()
+Today_Text <- format(Today, "%Y.%m.%d")
+
+# Input & Data set Imports ------------------------------------------------
+
+#Set Working Directory
+input_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/02. Prophet Inputs/"
+output_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/03. Prophet Outputs/"
+
+#Import Data sets
+SU <- fread(file=paste0(input_directory, "2025.03.27 Signups", ".csv"), 
+            check.names = TRUE)
+Holidays <- fread(file=paste0(input_directory, "collated_holidays", ".csv"), 
+                  check.names = TRUE)
+Campaigns <- fread(file=paste0(input_directory, "2025.03.18 Campaigns", ".csv"), 
+                   check.names = TRUE)
+MS_AF_W <- fread(file=paste0(input_directory, "2025.04.02 Looker_MS_AF_W", ".csv"), 
+                 check.names = TRUE)
+MS_F_M <- fread(file=paste0(input_directory, "2025.04.02 MS_F_M", ".csv"), 
+                check.names = TRUE) 
+
+# Country List ------------------------------------------------------------
+
+country_SN_list <- c("US", "CA", "AU", "BR", "FR", "DE", "IN", "PH", "MX", "ID", "ES", "JP", "IT")
+country_SU_list <- c("US", 
+                     "Canada", "Australia", "Brazil", "France", "Germany", "India", "Philippines", "Mexico", "Indonesia", "Spain", "Japan", "Italy")
+country_MS_list <- c("United States of America", 
+                     "Canada", "Australia", "Brazil", "France", "Germany", "India", "Philippines", "Mexico", "Indonesia", "Spain", "Japan", "Italy")
+
+country_SN <- "IT"
+country_SU <- "Italy"
+country_MS <- "Italy"
+
+# Country Loop ------------------------------------------------------------
+
+for (i in seq_along(country_SN_list)) {
+  
+  country_SN <- country_SN_list[i]
+  country_SU <- country_SU_list[i]
+  country_MS <- country_MS_list[i]
+  
+  message("Running forecast for: ", country_SN)
+}
+# Model List --------------------------------------------------------------
+
+#Define suffixes for forecast splits
+split_suffixes <- c("TSU", "EDU", "B2C", "B2B",
+                    "EDU_ORG_WEB", "EDU_ORG_IOS", "EDU_ORG_AND", "EDU_MAR_WEB",
+                    "B2C_ORG_WEB", "B2C_ORG_IOS", "B2C_ORG_AND", "B2C_MAR_WEB",
+                    "B2B_ORG_WEB", "B2B_MAR_WEB")
+
+#Create Forecast Splits
+B_names <- paste(country_SN, split_suffixes, sep = "_")
+B_num <- length(B_names)
+
+#Create Actuals
+A_names <- paste0(B_names, "_A")
+
+#Map model IDs to corresponding splits
+model_ids <- c("M1", "M2", "M3", "M4",
+               "M11", "M12", "M13", "M14",
+               "M17", "M18", "M19", "M20",
+               "M23", "M26")
+
+#Build Model Names
+M_names <- paste0(model_ids, "_R3_", B_names)
+M_num <- length(M_names)
+
+#Forecast output names
+F_names <- paste0(M_names, "_F")
+
+#Performance metrics names
+ape_names <- paste0(M_names, "_APE")
+
+#Coefficient names
+Co_names <- paste0(M_names, "_Co")
+
+#Define subset of suffixes for MAU model extract
+ext_suffixes <- c("EDU_ORG_WEB", "EDU_ORG_IOS", "EDU_ORG_AND", "EDU_MAR_WEB",
+                  "B2C_ORG_WEB", "B2C_ORG_IOS", "B2C_ORG_AND", "B2C_MAR_WEB",
+                  "B2B_ORG_WEB", "B2B_MAR_WEB")
+
+#Extract Forecast Splits
+EXT_models <- paste(country_SN, ext_suffixes, sep = "_")
+
+#Use corresponding model_ids (matched by position in original list)
+ext_model_ids <- model_ids[split_suffixes %in% ext_suffixes]
+EXT_names <- paste0(ext_model_ids, "_R3_", EXT_models)
+
+#Extract labels
+EXT_labels <- paste0(EXT_models, "_EXT")
+
+# Cleaning & Transformation: (y) Sign-Ups ---------------------------------
+
+############ y: Paid Sign-Ups
+
+#Format dates
+SU$Date <- as.Date(SU$Date, format = "%m/%d/%Y")
+
+#Filter for relevant actuals
+SU_A <- SU %>% filter(Date >= D_ActualStart)
+
+#Filter for the selected country
+SU_Country <- SU_A %>%
+  filter(MAP_STRATEGY_REGION == country_SU) %>%
+  rename(ds = Date, y = SIGNUPS)
+
+#Assign the base country-level dataset (e.g., US_SU_A)
+assign(paste0(country_SN, "_SU_A"), SU_Country)
+
+#Define filtering rules for each forecast split
+filters <- list(
+  TSU              = quote(TRUE),
+  EDU              = quote(MAP_CUSTOMER_TYPE == "Edu"),
+  ORG              = quote(MAP_SIGNUP_SOURCE == "organic"),
+  MAR              = quote(MAP_SIGNUP_SOURCE == "marketing"),
+  EDU_ORG          = quote(MAP_CUSTOMER_TYPE == "Edu" & MAP_SIGNUP_SOURCE == "organic"),
+  EDU_ORG_WEB      = quote(MAP_CUSTOMER_TYPE == "Edu" & MAP_SIGNUP_SOURCE == "organic" & MAP_PLATFORM == "web"),
+  EDU_ORG_IOS      = quote(MAP_CUSTOMER_TYPE == "Edu" & MAP_SIGNUP_SOURCE == "organic" & MAP_PLATFORM == "iOS"),
+  EDU_ORG_AND      = quote(MAP_CUSTOMER_TYPE == "Edu" & MAP_SIGNUP_SOURCE == "organic" & MAP_PLATFORM == "Android"),
+  EDU_MAR_WEB      = quote(MAP_CUSTOMER_TYPE == "Edu" & MAP_SIGNUP_SOURCE == "marketing" & MAP_PLATFORM == "web"),
+  B2C              = quote(MAP_CUSTOMER_TYPE == "B2C"),
+  B2C_ORG_WEB      = quote(MAP_CUSTOMER_TYPE == "B2C" & MAP_SIGNUP_SOURCE == "organic" & MAP_PLATFORM == "web"),
+  B2C_ORG_IOS      = quote(MAP_CUSTOMER_TYPE == "B2C" & MAP_SIGNUP_SOURCE == "organic" & MAP_PLATFORM == "iOS"),
+  B2C_ORG_AND      = quote(MAP_CUSTOMER_TYPE == "B2C" & MAP_SIGNUP_SOURCE == "organic" & MAP_PLATFORM == "Android"),
+  B2C_MAR_WEB      = quote(MAP_CUSTOMER_TYPE == "B2C" & MAP_SIGNUP_SOURCE == "marketing" & MAP_PLATFORM == "web"),
+  B2B              = quote(MAP_CUSTOMER_TYPE == "B2B"),
+  B2B_ORG_WEB      = quote(MAP_CUSTOMER_TYPE == "B2B" & MAP_SIGNUP_SOURCE == "organic" & MAP_PLATFORM == "web"),
+  B2B_MAR_WEB      = quote(MAP_CUSTOMER_TYPE == "B2B" & MAP_SIGNUP_SOURCE == "marketing" & MAP_PLATFORM == "web")
+)
+
+# Loop through each filter rule and assign to dynamic variable
+for (suffix in names(filters)) {
+  var_name <- paste0(country_SN, "_", suffix, "_A")
+  filtered_df <- SU_Country %>% filter(eval(filters[[suffix]]))
+  assign(var_name, filtered_df)
+}
+
+#Format and structure for each split of actuals 
+for (A_name in A_names) {
+  df <- get(A_name) %>%
+    select(ds, y) %>%
+    group_by(ds) %>%
+    summarise(y = sum(y), .groups = "drop") %>%
+    arrange(ds) %>% 
+    complete(ds = full_seq(ds, 1))
+  assign(A_name, df)  
+}
+
+#Filter for actuals period for each split of actuals
+for (B_name in B_names) {
+  df_A <- get(paste0(B_name, "_A"))  
+  filtered_df <- df_A %>% 
+    filter(ds <= D_ForecastStart - 1) %>% 
+    complete(ds = full_seq(ds, 1))
+  assign(B_name, filtered_df) 
+}
+
+# Cleaning & Transformation: Regressors -----------------------------------
+
+############ Regressor: Public Holidays (Actuals & Forecast)
+
+holidays_tblname <- paste0(country_SN, "_Holidays")
+
+#Format date
+Holidays$ds <- as.Date(Holidays$ds, format = "%m/%d/%Y")
+
+#Filter out NAs 
+Holidays <- Holidays %>% 
+  filter(!is.na(country)) 
+
+#Filter for Relevant Holidays
+Holidays_filtered <- Holidays %>%
+  filter(country == !!country_SN)
+
+#Assign to a dynamic object
+assign(holidays_tblname, Holidays_filtered)
+
+############ Timeframe
+
+#Regressor Table Name
+regressor_tblname <- paste0(country_SN, "_TSU_R")
+
+#Generate daily date timeframe for actuals period
+tsu_dates <- seq(from = as.Date(D_ActualStart, format = "%Y-%m-%d"),
+                 to = as.Date(D_ForecastEnd, format = "%Y-%m-%d"),
+                 by = "1 days")
+
+#Convert to tibble and rename column
+tsu_df <- as_tibble(tsu_dates) %>%
+  rename(ds = value)
+
+#Assign to dynamically named object
+assign(regressor_tblname, tsu_df)
+
+############ Regressor: Campaign Dates (Actuals & Forecast)
+
+#Format
+Campaigns$ds <- as.Date(Campaigns$ds, format="%m/%d/%y")
+Campaigns <- as_tibble(Campaigns)
+
+#Get the regressor table by name
+regressor_tbl <- get(regressor_tblname)
+
+#Merge Campaigns into the regressor table
+regressor_tbl <- regressor_tbl %>% 
+  merge(Campaigns, by = "ds", all.x = TRUE)
+
+#Assign it back to the original variable name
+assign(regressor_tblname, regressor_tbl)
+
+#Check: Total Campaign Days
+C_CampaignDays <- sum(regressor_tbl$Campaigns, na.rm = TRUE)
+
+############ Regressor: Weekly Marketing Spend (Actuals & Forecast) 
+
+MS_AF_W$ds <- as.Date(MS_AF_W$ds, format="%m/%d/%Y")
+MS_AF_W <- as_tibble(MS_AF_W)
+MS_AF_W <- MS_AF_W %>%
+  rename(perMar = PerMar)
+
+CC_MS_AF_W <- MS_AF_W %>% 
+  filter(Country == country_SN) %>% 
+  select(ds,Brand,perMar)
+
+#Turn weekly marketing spend into daily 
+CC_MS_AF_W <- CC_MS_AF_W %>%
+  complete(ds = full_seq(ds, 1)) %>% 
+  fill(Brand) %>%
+  complete(ds = full_seq(ds, 1)) %>% 
+  fill(perMar) %>%
+  mutate(Brand = Brand/7) %>%
+  mutate(perMar = perMar/7) %>% 
+  filter(ds <= D_MS_AtoF)
+
+#Format
+MS_F_M$MONTH <- as.Date(MS_F_M$MONTH, format="%Y-%m-%d")
+MS_F_M <- as_tibble(MS_F_M)
+
+#Separate perMar and Brand into columns
+MS_F_M_perMar <- MS_F_M %>% 
+  filter(BUDGET == "Performance Marketing") %>% 
+  select(COUNTRY_NAME,MONTH,TARGET)
+MS_F_M_Brand <- MS_F_M %>% 
+  filter(BUDGET == "Brand Marketing") %>% 
+  select(COUNTRY_NAME,MONTH,TARGET)
+MS_F_M <- merge(MS_F_M_perMar,MS_F_M_Brand,by.x=c("COUNTRY_NAME","MONTH"),by.y=c("COUNTRY_NAME","MONTH"),all.x = TRUE,all.y = TRUE)
+
+#Format
+MS_F_M <- as_tibble(MS_F_M)
+MS_F_M <- MS_F_M %>% 
+  rename(perMar = TARGET.x) %>% 
+  rename(Brand = TARGET.y) 
+
+#Turn monthly data into daily data by dividing by number of days in a month
+CC_MS_F_M <- MS_F_M %>%
+  filter(COUNTRY_NAME == country_MS) %>%
+  complete(MONTH = full_seq(MONTH,1)) %>% 
+  fill(Brand) %>% 
+  fill(perMar) %>%
+  mutate(days_in_month = days_in_month(MONTH)) %>% 
+  mutate(Brand = Brand/days_in_month) %>% 
+  mutate(perMar = perMar/days_in_month) %>% 
+  rename(ds = MONTH) %>% 
+  select(ds,Brand,perMar)
+
+#Filter for the for the date the marketing spend data switches into budget
+CC_MS_F_M <- CC_MS_F_M %>% 
+  filter(ds > D_MS_AtoF)
+
+#Bind actuals and forecast marketing spend
+CC_MS <- rbind(CC_MS_AF_W,CC_MS_F_M)
+
+#Merge in Marketing Spend to regressor table
+regressor_tbl <- merge(regressor_tbl,CC_MS,by = "ds",all.x = TRUE)
+assign(regressor_tblname, regressor_tbl)
+
+# Manual Adjustments ------------------------------------------------------
+
+#Filtering out outliers in US_B2C_ORG_AND
+#D_NAStart <- as.Date("2023-08-01")
+#D_NAEnd <- as.Date("2023-12-31")
+#Prior_NA <- US_B2C_ORG_AND %>% 
+#  filter(ds < D_NAStart)
+#Post_NA <-US_B2C_ORG_AND %>% 
+#  filter(ds > D_NAEnd)
+#US_B2C_ORG_AND <- rbind(Prior_NA,Post_NA)
+
+#CA_B2B_MAR_WEB
+#2022-08-07,0
+#2024-05-19,0
+
+#BR_B2B_MAR_WEB_A <- BR_B2B_MAR_WEB_A %>% 
+#  add_row(ds = as.Date("2022-01-01"), y = as.integer("0"), .before = 1)
+
+if(country_SN == "BR"){
+  BR_B2B_MAR_WEB_A <- BR_B2B_MAR_WEB_A %>% 
+    add_row(ds = as.Date("2022-01-01"), y = as.integer("0"), .before = 1)
+}
+
+if(country_SN == "FR"){
+  FR_B2B_MAR_WEB_A <- FR_B2B_MAR_WEB_A %>% 
+    add_row(ds = as.Date("2022-01-01"), y = as.integer("0"), .before = 1)
+}
+
+if(country_SN == "DE"){
+  DE_B2B_MAR_WEB_A <- DE_B2B_MAR_WEB_A %>% 
+    add_row(ds = as.Date("2022-01-01"), y = as.integer("0"), .before = 1)
+}
+
+if(country_SN == "PH"){
+  PH_B2B_MAR_WEB_A <- PH_B2B_MAR_WEB_A %>% 
+    add_row(ds = as.Date("2022-01-01"), y = as.integer("0"), .before = 1)
+}
+
+if(country_SN == "MX"){
+  MX_B2B_MAR_WEB_A <- MX_B2B_MAR_WEB_A %>% 
+    add_row(ds = as.Date("2022-01-01"), y = as.integer("0"), .before = 1)
+}
+
+# Forecasting -------------------------------------------------------------
+
+#Start timer
+F_start <- Sys.time()
+
+#Forecast Function 
+prophet_forecast <- function(name, actuals, regressors, holidays) {
+  
+  #Create model with specified parameters
+  model <- prophet(changepoint.range = 1, 
+                   holidays = holidays,
+                   daily.seasonality = FALSE, 
+                   weekly.seasonality = 4, 
+                   yearly.seasonality = 9.5,
+                   changepoint.prior.scale = 0.05,
+                   seasonality.prior.scale = 10, 
+                   holidays.prior.scale = 10
+  )
+  
+  #Add regressors 
+  model <- add_regressor(model, 'perMar')
+  model <- add_regressor(model, 'Campaigns')
+  
+  #Merge regressors and actuals 
+  train <- merge(regressors, actuals, by = "ds", all.x = TRUE)
+  
+  #Forecast 
+  model <- fit.prophet(model, train)
+  forecast <- predict(model, regressors)
+  
+  #Make negatives equal to 0 
+  forecast <- forecast %>% mutate(yhat = if_else(yhat < 0, 0, yhat))
+  
+  #Assign to model name
+  assign(name, model, envir = .GlobalEnv)
+  assign(paste0(name, "_F"), forecast, envir = .GlobalEnv)
+}
+
+#Forecast each model
+for (i in seq_along(M_names)) {
+  prophet_forecast(M_names[i], get(B_names[i]), regressor_tbl, Holidays_filtered)
+}
+
+#Plot forecast figures and regression components
+for (i in seq_along(M_names)) {
+  model <- get(M_names[i])
+  forecast <- get(F_names[i])
+  
+  #Plot forecast
+  print(plot(model, forecast) +
+          ggtitle(paste("Forecast for", M_names[i])) +
+          xlab("Year") +
+          ylab("Sign Ups")
+  )
+  
+  #Plot components
+  #prophet_plot_components(model, forecast)
+}
+
+#End timer
+F_end <- Sys.time() - F_start
+
+# Regression Metrics ------------------------------------------------------
+
+#Start timer
+PM_start <- Sys.time()
+
+#Perform cross validation and calculate performance metrics for each model
+for (model_name in M_names) {
+  
+  #Perform cross-validation
+  model_cv <- cross_validation(
+    model = get(model_name),
+    units = "days",
+    horizon = 180,
+    period = 30
+  )
+  
+  #Calculate performance metrics
+  model_pm <- performance_metrics(model_cv)
+  
+  #Transpose and format
+  model_ape <- transpose_df(tail(model_pm, 1))
+  model_ape <- model_ape %>% 
+    rename(Metric = rowname) %>%
+    rename(!!paste0(model_name) := 2)
+  
+  #Naming
+  assign(paste0(model_name, "_APE"), model_ape)
+}
+
+#Initialize dataset with the first model
+All_APE <- get(ape_names[1])
+
+#Merge and compile metrics from all models
+for (ape_name in ape_names[-1]) {
+  All_APE <- merge(All_APE, get(ape_name), by="Metric", all=TRUE)
+}
+
+#Reorder Metrics
+All_APE <- All_APE %>% 
+  arrange(factor(Metric, levels = c('mape','mdape','smape','mae')))
+
+#End timer
+PM_end <- Sys.time() - PM_start
+
+# Coefficients ------------------------------------------------------------
+
+#Start timer
+Co_start <- Sys.time()
+
+#Retrieve coefficients for each model 
+for (dataset_name in M_names) {
+  
+  #Retrieve model coefficients
+  current_dataset <- get(dataset_name)
+  current_co <- current_dataset$params$beta %*% as.matrix(current_dataset$train.component.cols)
+  
+  #Format coefficients
+  current_co <- transpose_df(as_tibble(current_co))
+  current_co <- current_co %>% 
+    rename(Regressor = rowname) %>%
+    rename(!!paste0(dataset_name) := `1`)  
+  
+  #Collate into table
+  current_co <- rbind(current_co, list('Intercept', current_dataset$params$m))
+  assign(paste0(dataset_name, "_Co"), current_co)
+}
+
+#Initialize dataset with first model only 
+All_Co <- get(Co_names[1])
+
+#Merge and compile all model coefficients
+for (i in 2:length(Co_names)) {
+  current_co <- get(Co_names[i])
+  All_Co <- merge(All_Co, current_co, by="Regressor", all=TRUE)
+}
+
+#Reorder Regressors
+All_Co <- All_Co %>% 
+  arrange(factor(Regressor, levels = c('Intercept','perMar','Brand','Campaigns','Spring_v2',
+                                       'additive_terms','multiplicative_terms','extra_regressors_additive','weekly','yearly')))
+
+#End timer
+Co_end <- Sys.time() - Co_start
+
+# Outputs -----------------------------------------------------------------
+
+#Initialise empty list to store data for actuals
+a_data <- list()
+
+#Retrieve actual figures for all models 
+for (actual in A_names) {
+  actual_data <- get(actual)
+  a_data[[actual]] <- actual_data$y
+}
+
+#Compile all actuals with date column
+All_A <- tibble::tibble(get(A_names[1])$ds,!!!a_data)
+
+#Rename date column
+All_A <- All_A %>% 
+  rename(ds = `get(A_names[1])$ds`)
+
+#Initialize empty list to store data for forecasts
+tibble_data <- list()
+
+#Loop through each model and retrieve forecasts
+for (model in M_names) {
+  model_data <- get(paste0(model, "_F"))
+  tibble_data[[model]] <- model_data$yhat
+}
+
+#Compile table of forecasts from all models 
+All_F <- tibble::tibble(get(F_names[1])$ds,!!!tibble_data)
+
+#Format
+All_F <- All_F %>% 
+  rename(ds = `get(F_names[1])$ds`)
+
+assign(paste0(country_SN,"_A"),All_A)
+assign(paste0(country_SN,"_F"),All_F)
+assign(paste0(country_SN,"_Co"),All_Co)
+assign(paste0(country_SN,"_APE"),All_APE)
+
+#Combine all output tabs 
+All_tabs <- list(
+  get(paste0(country_SN, "_A")),
+  get(paste0(country_SN, "_F")),
+  get(paste0(country_SN, "_Co")),
+  get(paste0(country_SN, "_APE"))
+)
+names(All_tabs) <- paste0(country_SN, c("_A", "_F", "_Co", "_APE"))
+
+#Output as CSV
+write.xlsx(All_tabs, file = paste0(output_directory, as.character(Today_Text), "_", "Outputs_", country_SN,"_TSU",".xlsx"))
+
+#End timer
+All_end <- Sys.time() - All_start
+
+#Time taken
+paste0("Excellent. It has taken ",format(F_end, digits = 2)," to forecast all models (",format(All_end, digits = 2)," to run the entire script). That is ",format(All_end/M_num, digits = 2),"/model.")
+
+# Extract for MAU Model ---------------------------------------------------
+
+# Initialize an empty list to store data for forecasts
+EXT_list <- list()
+
+#Loop through each model and retrieve forecasts
+for (m in EXT_names) {
+  EXT_data <- get(paste0(m, "_F"))
+  EXT_list[[m]] <- EXT_data$yhat
+}
+
+#Compile table of forecasts from all models 
+EXT_F <- tibble::tibble(M11_R3_US_EDU_ORG_WEB_F$ds,!!!EXT_list)
+
+#Format
+EXT_F <- EXT_F %>% 
+  rename(ds = `M11_R3_US_EDU_ORG_WEB_F$ds`)
+EXT_F$ds <- as.Date(as.POSIXct(EXT_F$ds, 'GMT'))
+
+#Extract and format forecasts 
+US_EDU_ORG_WEB_EXT <- EXT_F %>% 
+  select(ds,M11_R3_US_EDU_ORG_WEB) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "Edu") %>% 
+  mutate(SignupChannel = "organic") %>%  
+  mutate(Platform = "web") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Signups = M11_R3_US_EDU_ORG_WEB) 
+
+US_EDU_ORG_IOS_EXT <- EXT_F %>% 
+  select(ds,M12_R3_US_EDU_ORG_IOS) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "Edu") %>% 
+  mutate(SignupChannel = "organic") %>%  
+  mutate(Platform = "iOS") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Signups = M12_R3_US_EDU_ORG_IOS) 
+
+US_EDU_ORG_AND_EXT <- EXT_F %>% 
+  select(ds,M13_R3_US_EDU_ORG_AND) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "Edu") %>% 
+  mutate(SignupChannel = "organic") %>%  
+  mutate(Platform = "Android") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Signups = M13_R3_US_EDU_ORG_AND) 
+
+US_EDU_MAR_WEB_EXT <- EXT_F %>% 
+  select(ds,M14_R3_US_EDU_MAR_WEB) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "Edu") %>% 
+  mutate(SignupChannel = "marketing") %>%  
+  mutate(Platform = "web") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Signups = M14_R3_US_EDU_MAR_WEB) 
+
+US_B2C_ORG_WEB_EXT <- EXT_F %>% 
+  select(ds,M17_R3_US_B2C_ORG_WEB) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "B2C") %>% 
+  mutate(SignupChannel = "organic") %>%  
+  mutate(Platform = "web") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Signups = M17_R3_US_B2C_ORG_WEB) 
+
+US_B2C_ORG_IOS_EXT <- EXT_F %>% 
+  select(ds,M18_R3_US_B2C_ORG_IOS) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "B2C") %>% 
+  mutate(SignupChannel = "organic") %>%  
+  mutate(Platform = "iOS") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Signups = M18_R3_US_B2C_ORG_IOS) 
+
+US_B2C_ORG_AND_EXT <- EXT_F %>% 
+  select(ds,M19_R3_US_B2C_ORG_AND) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "B2C") %>% 
+  mutate(SignupChannel = "organic") %>%  
+  mutate(Platform = "Android") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Signups = M19_R3_US_B2C_ORG_AND) 
+
+US_B2C_MAR_WEB_EXT <- EXT_F %>% 
+  select(ds,M20_R3_US_B2C_MAR_WEB) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "B2C") %>% 
+  mutate(SignupChannel = "marketing") %>%  
+  mutate(Platform = "web") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Signups = M20_R3_US_B2C_MAR_WEB) 
+
+US_B2B_ORG_WEB_EXT <- EXT_F %>% 
+  select(ds,M23_R3_US_B2B_ORG_WEB) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "B2B") %>% 
+  mutate(SignupChannel = "organic") %>%  
+  mutate(Platform = "web") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Signups = M23_R3_US_B2B_ORG_WEB) 
+
+US_B2B_MAR_WEB_EXT <- EXT_F %>% 
+  select(ds,M26_R3_US_B2B_MAR_WEB) %>% 
+  mutate(Region = "US") %>% 
+  mutate(UserType = "B2B") %>% 
+  mutate(SignupChannel = "marketing") %>%  
+  mutate(Platform = "web") %>%
+  mutate(Scenario = "Incl Marketing") %>%
+  rename(Signups = M26_R3_US_B2B_MAR_WEB) 
+
+#Format each extract 
+for (name in EXT_labels) {
+  df <- get(name) %>%
+    rename(Date = ds) %>%
+    select(Date, Region, UserType, Platform, SignupChannel, Signups, Scenario) %>%
+    filter(Date >= D_ForecastStart)
+  assign(name, df)  
+}
+
+#Format actuals 
+Extract_A <- SU %>% 
+  rename(Region = MAP_STRATEGY_REGION) %>% 
+  rename(UserType = MAP_CUSTOMER_TYPE) %>% 
+  rename(Platform = MAP_PLATFORM) %>% 
+  rename(SignupChannel = MAP_SIGNUP_SOURCE) %>% 
+  rename(Signups = SIGNUPS) %>% 
+  select(Date, Region, UserType, Platform, SignupChannel, Signups) %>%
+  filter(Date >= D_ActualStart) %>%
+  filter(Date < D_ForecastStart) %>% 
+  mutate(Scenario = "Incl Marketing") 
+
+#Merge in forecasts with actuals
+Extract_AF <- do.call("rbind", c(list(Extract_A), mget(EXT_labels)))
+
+#Check: # of rows in Daily Extract 
+C_DailyExtractRows <- nrow(Extract_AF)
+
+#Transform from daily to end of month data 
+Extract_AF <- Extract_AF %>%
+  mutate(EOM = ceiling_date(Date, "month") - days(1)) %>% 
+  group_by(EOM,Region,UserType,Platform,SignupChannel,Scenario) %>% 
+  summarise(Signups = sum(Signups)) %>% 
+  rename(Date = EOM) %>% 
+  select(Date, Region, UserType, Platform, SignupChannel, Signups, Scenario)
+
+#Checks: # of rows in Monthly Extract 
+C_MonthlyExtractRows <- nrow(Extract_AF)
+
+#Output as CSV
+write.csv(Extract_AF, file = paste0(output_directory, as.character(Today_Text), "_", "Signups_Extract",".csv"), row.names = FALSE)
+
+#Checks
+#C_SpringDays
+C_CampaignDays
+C_DailyExtractRows
+C_MonthlyExtractRows
+
+# Singular Model ----------------------------------------------------------
+
+#Forecast and Plot
+prophet_forecast(M_names[11], get(B_names[11]), US_TSU_R, US_Holidays)
+print(plot(M_names[11], F_names[11]) +
+        ggtitle(paste("Forecast for", M_names[11])) +
+        xlab("Year") +
+        ylab("Sign Ups")
+)
+
+#Perform CV and retrieve metrics
+col_name <- M_names[11]
+ii_APEname <- paste0(M_names[11],"_APE")
+ii_CV <- cross_validation(model = get(M_names[11]), units = "days", horizon = 180, period = 30)
+ii_PM = performance_metrics(ii_CV)
+ii_APE <- transpose_df(tail(ii_PM,1))
+ii <- ii_APE %>% 
+  rename(Metric = rowname) %>% 
+  rename_with(~ col_name, .cols = 2) 
+assign(paste0(M_names[11],"_APE"),ii)
