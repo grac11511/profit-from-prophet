@@ -100,17 +100,21 @@ D_ActualStart <- as.Date("2022-01-01")
 D_MS_AtoF <- as.Date("2025-03-31")
 
 #Forecast
-#D_ForecastStart <- as.Date("2025-03-01")
+#D_ForecastStart <- as.Date("2025-01-01")
 #D_ForecastEnd <- as.Date("2025-12-31")
 
 #Forecast
 #D_ForecastStart <- as.Date("2025-04-01")
-#D_ForecastEnd <- as.Date("2026-03-31")
+#D_ForecastEnd <- as.Date("2025-12-31")
+
+#Forecast
+D_ForecastStart <- as.Date("2025-04-01")
+D_ForecastEnd <- as.Date("2026-03-31")
 
 #Holdout: Jan 2025 - Mar 2025
-HO <- "HO25"
-D_ForecastStart <- as.Date("2025-01-01")
-D_ForecastEnd <- as.Date("2025-03-31")
+#HO <- "HO25"
+#D_ForecastStart <- as.Date("2025-01-01")
+#D_ForecastEnd <- as.Date("2025-03-31")
 
 #Holdout: Jan 2024 - Dec 2024
 #HO <- "HO24"
@@ -150,7 +154,7 @@ Holidays <- fread(file=paste0(input_directory, "2025.04.04 collated_holidays", "
                   check.names = TRUE)
 Campaigns <- fread(file=paste0(input_directory, "2025.03.18 Campaigns", ".csv"), 
                    check.names = TRUE)
-MS_AF_W <- fread(file=paste0(input_directory, "2025.04.04 Looker_MS_AF_W", ".csv"), 
+MS_AF_W <- fread(file=paste0(input_directory, "2025.04.10 Looker_MS_AF_W", ".csv"), 
                  check.names = TRUE)
 MS_F_M <- fread(file=paste0(input_directory, "2025.04.08 MS_F_M", ".csv"), 
                 check.names = TRUE) 
@@ -175,47 +179,21 @@ SU_A <- SU %>% filter(DATE >= D_ActualStart)
 MS_AF_W[is.na(MS_AF_W)] = 0 
 MS_AF_W$ds <- as.Date(MS_AF_W$ds, format="%m/%d/%Y")
 MS_AF_W <- as_tibble(MS_AF_W)
-MS_AF_W <- MS_AF_W %>%
-  rename(perMar = PerMar)
 
 #Replace all GB with UK
 MS_AF_W <- MS_AF_W %>%
   mutate(Country = str_replace(Country, "GB", "UK"))
 
-#Group by MAU + Seeding
-MS_AF_W_perMar <- MS_AF_W %>%
-#  filter(Channel %in%  c("MAU","Seeding")) %>%
-  group_by(ds,Country) %>%
-  summarise(perMar = sum(perMar), .groups = "drop") %>%
-  arrange(ds) 
-
-MS_AF_W_Brand <- MS_AF_W %>%
-  select(ds,Country,Brand) %>%
-  group_by(ds,Country) %>%
-  summarise(Brand = sum(Brand), .groups = "drop") %>%
-  arrange(ds) 
-
-MS_AF_W <- MS_AF_W_perMar %>%
-  full_join(MS_AF_W_Brand, by = c("ds","Country"))
-
 #Format
 MS_F_M$MONTH <- as.Date(MS_F_M$MONTH, format="%m/%d/%Y")
 MS_F_M <- as_tibble(MS_F_M)
-
-#Separate perMar and Brand into columns
-MS_F_M_perMar <- MS_F_M %>% 
+MS_F_M <- MS_F_M %>% 
   filter(BUDGET == "Performance Marketing") %>% 
-  select(COUNTRY_NAME,MONTH,TARGET)
-MS_F_M_Brand <- MS_F_M %>% 
-  filter(BUDGET == "Brand Marketing") %>% 
-  select(COUNTRY_NAME,MONTH,TARGET)
-MS_F_M <- merge(MS_F_M_perMar,MS_F_M_Brand,by.x=c("COUNTRY_NAME","MONTH"),by.y=c("COUNTRY_NAME","MONTH"),all.x = TRUE,all.y = TRUE)
+  select(COUNTRY_NAME,MONTH,TARGET) %>% 
+  rename(perMar = TARGET) 
 
 #Format
 MS_F_M <- as_tibble(MS_F_M)
-MS_F_M <- MS_F_M %>% 
-  rename(perMar = TARGET.x) %>% 
-  rename(Brand = TARGET.y) 
 
 # Country List ------------------------------------------------------------
 
@@ -473,7 +451,7 @@ for (i in seq_along(country_SN_list)) {
       complete(ds = full_seq(ds, 1))
     assign(B_name, filtered_df) 
   }
-  
+
   # Cleaning & Transformation: Regressors -----------------------------------
   
   ############ Regressor: Public Holidays (Actuals & Forecast)
@@ -537,15 +515,12 @@ for (i in seq_along(country_SN_list)) {
   
   CC_MS_AF_W <- MS_AF_W %>% 
     filter(Country == country_SN) %>% 
-    select(ds,Brand,perMar)
+    select(ds,perMar)
   
   #Turn weekly marketing spend into daily 
   CC_MS_AF_W <- CC_MS_AF_W %>%
     complete(ds = full_seq(ds, 1)) %>% 
-    fill(Brand) %>%
-    complete(ds = full_seq(ds, 1)) %>% 
     fill(perMar) %>%
-    mutate(Brand = Brand/7) %>%
     mutate(perMar = perMar/7) %>% 
     filter(ds <= D_MS_AtoF)
   
@@ -553,13 +528,11 @@ for (i in seq_along(country_SN_list)) {
   CC_MS_F_M <- MS_F_M %>%
     filter(COUNTRY_NAME == country_FN) %>%
     complete(MONTH = full_seq(MONTH,1)) %>% 
-    fill(Brand) %>% 
     fill(perMar) %>%
     mutate(days_in_month = days_in_month(MONTH)) %>% 
-    mutate(Brand = Brand/days_in_month) %>% 
     mutate(perMar = perMar/days_in_month) %>% 
     rename(ds = MONTH) %>% 
-    select(ds,Brand,perMar)
+    select(ds,perMar)
   
   #Filter for the for the date the marketing spend data switches into budget
   CC_MS_F_M <- CC_MS_F_M %>% 
@@ -569,7 +542,6 @@ for (i in seq_along(country_SN_list)) {
   CC_MS <- rbind(CC_MS_AF_W,CC_MS_F_M)
   
   CC_MS$perMar[is.na(CC_MS$perMar)] <- 0
-  CC_MS$Brand[is.na(CC_MS$Brand)] <- 0
   
   #Merge in Marketing Spend to regressor table
   regressor_tbl <- merge(regressor_tbl,CC_MS,by = "ds",all.x = TRUE)
@@ -605,7 +577,7 @@ for (i in seq_along(country_SN_list)) {
   for (i in seq_along(M_names)) {
     prophet_forecast(M_names[i], get(B_names[i]), regressor_tbl, Holidays_filtered)
   }
-  
+
   #Plot forecast figures and regression components
   for (i in seq_along(M_names)) {
     model <- get(M_names[i])
@@ -807,7 +779,7 @@ process_model_extracts <- function(prefix, user_type, signup_channel, platform, 
         Platform = platform,
         Scenario = scenario
       ) %>%
-      rename(Signups = !!sym(col_name))
+      rename(SignupsForecast = !!sym(col_name))
   })
   
   #Generate and assign names
@@ -844,7 +816,7 @@ full_combos <- expand.grid(
 All_EXT_names <- paste0(full_combos$country, "_", full_combos$suffix, "_EXT")
 
 #Format actuals 
-Extract_A <- SU %>% 
+Extract_A_D <- SU %>% 
   rename(ds = DATE) %>% 
   rename(Region = REGIONS) %>% 
   rename(UserType = CUSTOMER_TYPE) %>% 
@@ -853,19 +825,30 @@ Extract_A <- SU %>%
   rename(Signups = TOTAL_SIGNUPS) %>% 
   select(ds, Region, UserType, Platform, SignupChannel, Signups) %>%
   filter(ds >= D_ActualStart) %>%
-  filter(ds < D_ForecastStart) %>% 
+  filter(ds <= D_MS_AtoF) %>% 
   mutate(Scenario = "Incl Marketing") 
 
 #Merge in forecasts with actuals
-Extract_AF <- do.call("rbind", c(list(Extract_A), mget(All_EXT_names)))
+ext_dfs <- lapply(All_EXT_names, get)
+Extract_F_D <- do.call(rbind, ext_dfs)
+Extract_F_D <- Extract_F_D %>% 
+  filter(ds >= D_ForecastStart)
 
 #Naming Conventions
-Extract_AF <- Extract_AF %>% 
+Extract_A_D <- Extract_A_D %>% 
   rename(Date = ds) %>%
   mutate(Region = str_replace_all(
     as.character(Region),
     c(
-      "\\bUnited States of America\\b" = "US", 
+      "\\bUnited States of America\\b" = "US"
+    )
+  ))
+
+Extract_F_D <- Extract_F_D %>% 
+  rename(Date = ds) %>%
+  mutate(Region = str_replace_all(
+    as.character(Region),
+    c(
       "\\bCA\\b" = "Canada", 
       "\\bAU\\b" = "Australia", 
       "\\bUK\\b" = "United Kingdom", 
@@ -882,6 +865,16 @@ Extract_AF <- Extract_AF %>%
     )
   ))
 
+#Format as tibble
+Extract_A_D <- as_tibble(Extract_A_D)
+
+#Option 1: New extract, merge actuals and forecast
+Extract_AF <- Extract_A_D %>% 
+  full_join(Extract_F_D, by = c("Date", "Region", "UserType", "SignupChannel", "Platform", "Scenario"))
+
+#Option 2: Build onto old extract, use forecast extract only
+Extract_AF <- Extract_F_D
+
 #Check: # of rows in Daily Extract 
 C_DailyExtractRows <- nrow(Extract_AF)
 
@@ -889,13 +882,25 @@ C_DailyExtractRows <- nrow(Extract_AF)
 Extract_AF <- Extract_AF %>%
   mutate(EOM = ceiling_date(Date, "month") - days(1)) %>% 
   group_by(EOM,Region,UserType,Platform,SignupChannel,Scenario) %>% 
-  summarise(Signups = sum(Signups)) %>% 
+  summarise(
+#    Signups = sum(Signups),
+            SignupsForecast = sum(SignupsForecast)) %>% 
   rename(Date = EOM) %>% 
-  select(Date, Region, UserType, Platform, SignupChannel, Signups, Scenario) %>% 
-  mutate(Signups = as.integer(Signups))
+  select(Date, Region, UserType, Platform, SignupChannel, Scenario, 
+#         Signups, 
+         SignupsForecast) 
 
 #Checks: # of rows in Monthly Extract 
 C_MonthlyExtractRows <- nrow(Extract_AF)
+
+#Option 2: Build onto old extract
+Extract_0325_1225 <- fread(file=paste0(output_directory, "2025.04.10_Signups_Extract_0325_1225", ".csv"), 
+                           check.names = TRUE) 
+Extract_0325_1225$Date <- as.Date(Extract_0325_1225$Date)
+Extract_AF <- Extract_AF %>% 
+  rename(SignupsForecast2 = SignupsForecast)
+Extract_AF <- Extract_0325_1225 %>% 
+  full_join(Extract_AF, by = c("Date", "Region", "UserType", "SignupChannel", "Platform", "Scenario"))
 
 #Output as CSV
 write.csv(Extract_AF, file = paste0(output_directory, as.character(Today_Text), "_", "Signups_Extract",".csv"), row.names = FALSE)
@@ -904,7 +909,7 @@ write.csv(Extract_AF, file = paste0(output_directory, as.character(Today_Text), 
 C_CampaignDays
 C_DailyExtractRows
 C_MonthlyExtractRows
-regressor_tbl
+
 # Regression Metrics ------------------------------------------------------
 
 #Start timer
@@ -969,3 +974,4 @@ B2B_APE <- compile_APE(B2B_APE_names)
 
 #End timer
 PM_end <- Sys.time() - PM_start
+
