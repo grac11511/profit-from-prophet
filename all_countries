@@ -779,7 +779,7 @@ process_model_extracts <- function(prefix, user_type, signup_channel, platform, 
         Platform = platform,
         Scenario = scenario
       ) %>%
-      rename(SignupsForecast = !!sym(col_name))
+      rename(Signups = !!sym(col_name))
   })
   
   #Generate and assign names
@@ -823,10 +823,10 @@ Extract_A_D <- SU %>%
   rename(Platform = PLATFORM) %>% 
   rename(SignupChannel = SIGNUP_SOURCE) %>% 
   rename(Signups = TOTAL_SIGNUPS) %>% 
-  select(ds, Region, UserType, Platform, SignupChannel, Signups) %>%
   filter(ds >= D_ActualStart) %>%
   filter(ds <= D_MS_AtoF) %>% 
-  mutate(Scenario = "Incl Marketing") 
+  mutate(Scenario = "Incl Marketing") %>%
+  select(ds, Region, UserType, Platform, SignupChannel, Scenario, Signups) 
 
 #Merge in forecasts with actuals
 ext_dfs <- lapply(All_EXT_names, get)
@@ -875,6 +875,9 @@ Extract_AF <- Extract_A_D %>%
 #Option 2: Build onto old extract, use forecast extract only
 Extract_AF <- Extract_F_D
 
+#Option 3: New extract, no scenarios 
+Extract_AF <- rbind(Extract_A_D,Extract_F_D)
+
 #Check: # of rows in Daily Extract 
 C_DailyExtractRows <- nrow(Extract_AF)
 
@@ -883,12 +886,14 @@ Extract_AF <- Extract_AF %>%
   mutate(EOM = ceiling_date(Date, "month") - days(1)) %>% 
   group_by(EOM,Region,UserType,Platform,SignupChannel,Scenario) %>% 
   summarise(
-#    Signups = sum(Signups),
-            SignupsForecast = sum(SignupsForecast)) %>% 
+        Signups = sum(Signups)
+#        , SignupsForecast = sum(SignupsForecast)
+        ) %>% 
   rename(Date = EOM) %>% 
   select(Date, Region, UserType, Platform, SignupChannel, Scenario, 
-#         Signups, 
-         SignupsForecast) 
+         Signups
+#         , SignupsForecast
+         ) 
 
 #Checks: # of rows in Monthly Extract 
 C_MonthlyExtractRows <- nrow(Extract_AF)
