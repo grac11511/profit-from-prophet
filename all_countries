@@ -58,7 +58,7 @@ transpose_df <- function(df) {
   return(t_df)
 }
 
-#Forecast Function 
+#Prophet Forecasting
 prophet_forecast <- function(name, actuals, regressors, holidays) {
   
   #Create model with specified parameters
@@ -91,6 +91,118 @@ prophet_forecast <- function(name, actuals, regressors, holidays) {
   assign(paste0(name, "_F"), forecast, envir = .GlobalEnv)
 }
 
+#Compile Actuals
+compile_actuals <- function(A_names){
+  
+  a_data <- list()
+  
+  for (actual in A_names) {
+    actual_data <- get(actual)
+    a_data[[actual]] <- actual_data$y
+  }
+  
+  #Compile all actuals with date column
+  All_A <- tibble::tibble(get(A_names[1])$ds,!!!a_data)
+  
+  #Rename date column
+  All_A <- All_A %>% 
+    rename(ds = `get(A_names[1])$ds`)
+  
+  return(All_A)
+}
+
+#Compile Forecasts
+compile_forecasts <- function(M_names,F_names){
+  
+  #Initialize empty list to store data for forecasts
+  tibble_data <- list()
+  
+  #Loop through each model and retrieve forecasts
+  for (model in M_names) {
+    model_data <- get(paste0(model, "_F"))
+    tibble_data[[model]] <- model_data$yhat
+  }
+  
+  #Compile table of forecasts from all models 
+  All_F <- tibble::tibble(get(F_names[1])$ds,!!!tibble_data)
+  
+  #Format
+  All_F <- All_F %>% 
+    rename(ds = `get(F_names[1])$ds`)
+  
+  return(All_F)
+}
+
+#Compile Coefficients
+compile_Co <- function(Co_names){
+  
+  #Initialize dataset with first model only 
+  All_Co <- get(Co_names[1])
+  
+  #Merge and compile all model coefficients
+  for (i in 2:length(Co_names)) {
+    current_co <- get(Co_names[i])
+    All_Co <- merge(All_Co, current_co, by="Regressor", all=TRUE)
+  }
+  
+  #Reorder Regressors
+  All_Co <- All_Co %>% 
+    arrange(factor(Regressor, levels = c('Intercept','perMar','Campaigns',
+                                         'additive_terms','multiplicative_terms','extra_regressors_additive','weekly','yearly')))
+  return(All_Co)
+  
+}
+
+#Compile Performance Metrics
+compile_APE <- function(ape_names){
+  
+  #Initialize dataset with the first model
+  All_APE <- get(ape_names[1])
+  
+  #Merge and compile metrics from all models
+  for (ape_name in ape_names[-1]) {
+    All_APE <- merge(All_APE, get(ape_name), by="Metric", all=TRUE)
+  }
+  
+  #Reorder Metrics
+  All_APE <- All_APE %>% 
+    arrange(factor(Metric, levels = c('mape','mdape','smape','mae')))
+  
+  return(All_APE)
+}
+
+#Construct Extracts for MAU Model 
+process_model_extracts <- function(prefix, user_type, signup_channel, platform, scenario = "Incl Marketing") {
+  
+  #Select relevant models 
+  df <- All_F %>%
+    select(ds, contains(prefix))
+  
+  #Get model names 
+  col_names <- setdiff(names(df), "ds")
+  
+  #Transform raw forecasts into extract form
+  extracts <- map(col_names, function(col_name) {
+    region <- str_extract(col_name, paste0("(?<=", prefix, "_R3_)[A-Z]{2}"))
+    
+    df %>%
+      select(ds, !!sym(col_name)) %>%
+      mutate(
+        Region = region,
+        UserType = user_type,
+        SignupChannel = signup_channel,
+        Platform = platform,
+        Scenario = scenario
+      ) %>%
+      rename(Signups = !!sym(col_name))
+  })
+  
+  #Generate and assign names
+  cleaned_names <- str_replace(col_names, paste0("^", prefix, "_R3_"), "")
+  names(extracts) <- paste0(cleaned_names, "_EXT")
+  list2env(extracts, envir = .GlobalEnv)
+}
+
 # Dates -----------------------------------------------------------------
 
 #Actual Start Date
@@ -99,15 +211,15 @@ D_ActualStart <- as.Date("2022-01-01")
 #Date Marketing Spend Switches from Actual to Forecast 
 D_MS_AtoF <- as.Date("2025-03-31")
 
-#Forecast
+#Forecast: Q1 2025
 #D_ForecastStart <- as.Date("2025-01-01")
 #D_ForecastEnd <- as.Date("2025-12-31")
 
-#Forecast
+#Forecast: Q2 2025
 #D_ForecastStart <- as.Date("2025-04-01")
 #D_ForecastEnd <- as.Date("2025-12-31")
 
-#Forecast
+#Forecast: Q2 2025
 D_ForecastStart <- as.Date("2025-04-01")
 D_ForecastEnd <- as.Date("2026-03-31")
 
@@ -119,22 +231,6 @@ D_ForecastEnd <- as.Date("2026-03-31")
 #Holdout: Jan 2024 - Dec 2024
 #HO <- "HO24"
 #D_ForecastStart <- as.Date("2024-01-01")
-#D_ForecastEnd <- as.Date("2024-12-31")
-
-#Holdout: Apr 2024 - Dec 2024
-#D_ForecastStart <- as.Date("2024-04-01")
-#D_ForecastEnd <- as.Date("2024-12-31")
-
-#Holdout: Jul 2024 - Dec 2024
-#D_ForecastStart <- as.Date("2024-07-01")
-#D_ForecastEnd <- as.Date("2024-12-31")
-
-#Holdout: Oct 2024 - Dec 2024
-#D_ForecastStart <- as.Date("2024-10-01")
-#D_ForecastEnd <- as.Date("2024-12-31")
-
-#Holdout: Mar 2024 - Dec 2024
-#D_ForecastStart <- as.Date("2024-03-01")
 #D_ForecastEnd <- as.Date("2024-12-31")
 
 #Today 
@@ -235,10 +331,8 @@ B2B_list <- list(
   M26 = "_MAR_WEB"
 )
 
-#Initialize empty vector
-EDU_names <- c()
-
 #Produce EDU model names 
+EDU_names <- c()
 for (EDU_id in names(EDU_list)) {
   suffix <- EDU_list[[EDU_id]]
   for (ctry in country_SN_list) {
@@ -246,10 +340,8 @@ for (EDU_id in names(EDU_list)) {
   }
 }
 
-#Initialize empty vector
-B2C_names <- c()
-
 #Produce B2C model names 
+B2C_names <- c()
 for (B2C_id in names(B2C_list)) {
   suffix <- B2C_list[[B2C_id]]
   for (ctry in country_SN_list) {
@@ -257,10 +349,8 @@ for (B2C_id in names(B2C_list)) {
   }
 }
 
-#Initialize empty vector
+#Produce B2B model names 
 B2B_names <- c()
-
-#Produce B2C model names 
 for (B2B_id in names(B2B_list)) {
   suffix <- B2B_list[[B2B_id]]
   for (ctry in country_SN_list) {
@@ -268,10 +358,14 @@ for (B2B_id in names(B2B_list)) {
   }
 }
 
-#Initialize empty vector
-EDU_A_names <- c()
+#Produce TSU model names 
+TSU_names <- c()
+for (ctry in country_SN_list) {
+  TSU_names <- c(TSU_names, paste0("M1_R3_", ctry, "_TSU"))
+}
 
-#Produce EDU model names 
+#Produce EDU_A model names 
+EDU_A_names <- c()
 for (EDU_id in names(EDU_list)) {
   suffix <- EDU_list[[EDU_id]]
   for (ctry in country_SN_list) {
@@ -279,10 +373,8 @@ for (EDU_id in names(EDU_list)) {
   }
 }
 
-#Initialize empty vector
+#Produce B2C_A model names 
 B2C_A_names <- c()
-
-#Produce B2C model names 
 for (B2C_id in names(B2C_list)) {
   suffix <- B2C_list[[B2C_id]]
   for (ctry in country_SN_list) {
@@ -290,10 +382,8 @@ for (B2C_id in names(B2C_list)) {
   }
 }
 
-#Initialize empty vector
+#Produce B2B_A model names 
 B2B_A_names <- c()
-
-#Produce B2B model names 
 for (B2B_id in names(B2B_list)) {
   suffix <- B2B_list[[B2B_id]]
   for (ctry in country_SN_list) {
@@ -301,19 +391,36 @@ for (B2B_id in names(B2B_list)) {
   }
 }
 
-TSU_names <- c()
-
-#Produce TSU model names 
-for (ctry in country_SN_list) {
-  TSU_names <- c(TSU_names, paste0("M1_R3_", ctry, "_TSU"))
-}
-
+#Produce TSU_A model names 
 TSU_A_names <- c()
-
-#Produce TSU model names 
 for (ctry in country_SN_list) {
   TSU_A_names <- c(TSU_A_names, paste0(ctry, "_TSU_A"))
 }
+
+#Forecast
+TSU_F_names <- paste0(TSU_names, "_F")
+EDU_F_names <- paste0(EDU_names, "_F")
+B2C_F_names <- paste0(B2C_names, "_F")
+B2B_F_names <- paste0(B2B_names, "_F")
+
+#Coefficients
+TSU_Co_names <- paste0(TSU_names, "_Co")
+EDU_Co_names <- paste0(EDU_names, "_Co")
+B2C_Co_names <- paste0(B2C_names, "_Co")
+B2B_Co_names <- paste0(B2B_names, "_Co")
+
+#Performance Metrics
+TSU_APE_names <- paste0(TSU_names, "_APE")
+EDU_APE_names <- paste0(EDU_names, "_APE")
+B2C_APE_names <- paste0(B2C_names, "_APE")
+B2B_APE_names <- paste0(B2B_names, "_APE")
+
+#Extract names 
+EXT_suffixes <- c(
+  "EDU_ORG_WEB", "EDU_ORG_IOS", "EDU_ORG_AND", "EDU_MAR_WEB",
+  "B2C_ORG_WEB", "B2C_ORG_IOS", "B2C_ORG_AND", "B2C_MAR_WEB",
+  "B2B_ORG_WEB", "B2B_MAR_WEB"
+)
 
 # Country Loop ------------------------------------------------------------
 
@@ -558,16 +665,8 @@ for (i in seq_along(country_SN_list)) {
     Post_NA <-US_B2C_ORG_AND %>% 
       filter(ds > D_NAEnd)
     US_B2C_ORG_AND <- rbind(Prior_NA,Post_NA)
-    
   }
-  
-  #CA_B2B_MAR_WEB
-  #2022-08-07,0
-  #2024-05-19,0
-  
-  #BR_B2B_MAR_WEB_A <- BR_B2B_MAR_WEB_A %>% 
-  #  add_row(ds = as.Date("2022-01-01"), y = as.integer("0"), .before = 1)
-  
+
   # Forecasting -------------------------------------------------------------
   
   #Start timer
@@ -623,109 +722,26 @@ for (i in seq_along(country_SN_list)) {
   #End timer
   Co_end <- Sys.time() - Co_start
   
-
 }
 # Outputs: All Countries --------------------------------------------------
 
-############ Actuals
-
-#Function 
-compile_actuals <- function(A_names){
-  
-  a_data <- list()
-  
-  for (actual in A_names) {
-    actual_data <- get(actual)
-    a_data[[actual]] <- actual_data$y
-  }
-  
-  #Compile all actuals with date column
-  All_A <- tibble::tibble(get(A_names[1])$ds,!!!a_data)
-  
-  #Rename date column
-  All_A <- All_A %>% 
-    rename(ds = `get(A_names[1])$ds`)
-  
-  return(All_A)
-}
-
-#Table
+#Retrieve Actuals 
 TSU_A <- compile_actuals(TSU_A_names)
 EDU_A <- compile_actuals(EDU_A_names)
 B2C_A <- compile_actuals(B2C_A_names)
 B2B_A <- compile_actuals(B2B_A_names)
 
-############ Forecasts
-
-#Names
-TSU_F_names <- paste0(TSU_names, "_F")
-EDU_F_names <- paste0(EDU_names, "_F")
-B2C_F_names <- paste0(B2C_names, "_F")
-B2B_F_names <- paste0(B2B_names, "_F")
-
-#Function 
-compile_forecasts <- function(M_names,F_names){
-  
-  #Initialize empty list to store data for forecasts
-  tibble_data <- list()
-  
-  #Loop through each model and retrieve forecasts
-  for (model in M_names) {
-    model_data <- get(paste0(model, "_F"))
-    tibble_data[[model]] <- model_data$yhat
-  }
-  
-  #Compile table of forecasts from all models 
-  All_F <- tibble::tibble(get(F_names[1])$ds,!!!tibble_data)
-  
-  #Format
-  All_F <- All_F %>% 
-    rename(ds = `get(F_names[1])$ds`)
-  
-  return(All_F)
-}
-
-#Table
+#Retrieve Forecasts
 TSU_F <- compile_forecasts(TSU_names,TSU_F_names)
 EDU_F <- compile_forecasts(EDU_names,EDU_F_names)
 B2C_F <- compile_forecasts(B2C_names,B2C_F_names)
 B2B_F <- compile_forecasts(B2B_names,B2B_F_names)
 
-############ Coefficients
-
-#Names
-TSU_Co_names <- paste0(TSU_names, "_Co")
-EDU_Co_names <- paste0(EDU_names, "_Co")
-B2C_Co_names <- paste0(B2C_names, "_Co")
-B2B_Co_names <- paste0(B2B_names, "_Co")
-
-#Function
-compile_Co <- function(Co_names){
-  
-  #Initialize dataset with first model only 
-  All_Co <- get(Co_names[1])
-  
-  #Merge and compile all model coefficients
-  for (i in 2:length(Co_names)) {
-    current_co <- get(Co_names[i])
-    All_Co <- merge(All_Co, current_co, by="Regressor", all=TRUE)
-  }
-  
-  #Reorder Regressors
-  All_Co <- All_Co %>% 
-    arrange(factor(Regressor, levels = c('Intercept','perMar','Campaigns',
-                                         'additive_terms','multiplicative_terms','extra_regressors_additive','weekly','yearly')))
-  return(All_Co)
-  
-}
-
-#Table
+#Retrieve Coefficients
 TSU_Co <- compile_Co(TSU_Co_names)
 EDU_Co <- compile_Co(EDU_Co_names)
 B2C_Co <- compile_Co(B2C_Co_names)
 B2B_Co <- compile_Co(B2B_Co_names)
-
-############ CSV
 
 #Combine all output tabs 
 All_tabs <- list('TSU_A'=TSU_A,'EDU_A'=EDU_A,'B2C_A'=B2C_A,'B2B_A'=B2B_A,
@@ -756,38 +772,6 @@ All_F <- EDU_F %>%
   left_join(B2C_F,by="ds") %>% 
   left_join(B2B_F,by="ds") 
 
-#Function for transform one model type into extract form 
-process_model_extracts <- function(prefix, user_type, signup_channel, platform, scenario = "Incl Marketing") {
-  
-  #Select relevant models 
-  df <- All_F %>%
-    select(ds, contains(prefix))
-  
-  #Get model names 
-  col_names <- setdiff(names(df), "ds")
-  
-  #Transform raw forecasts into extract form
-  extracts <- map(col_names, function(col_name) {
-    region <- str_extract(col_name, paste0("(?<=", prefix, "_R3_)[A-Z]{2}"))
-    
-    df %>%
-      select(ds, !!sym(col_name)) %>%
-      mutate(
-        Region = region,
-        UserType = user_type,
-        SignupChannel = signup_channel,
-        Platform = platform,
-        Scenario = scenario
-      ) %>%
-      rename(Signups = !!sym(col_name))
-  })
-  
-  #Generate and assign names
-  cleaned_names <- str_replace(col_names, paste0("^", prefix, "_R3_"), "")
-  names(extracts) <- paste0(cleaned_names, "_EXT")
-  list2env(extracts, envir = .GlobalEnv)
-}
-
 #Run for each model type 
 process_model_extracts("M11", user_type = "Edu", signup_channel = "organic", platform = "web")
 process_model_extracts("M12", user_type = "Edu", signup_channel = "organic", platform = "iOS")
@@ -799,13 +783,6 @@ process_model_extracts("M19", user_type = "B2C", signup_channel = "organic", pla
 process_model_extracts("M20", user_type = "B2C", signup_channel = "marketing", platform = "web")
 process_model_extracts("M23", user_type = "B2B", signup_channel = "organic", platform = "web")
 process_model_extracts("M26", user_type = "B2B", signup_channel = "marketing", platform = "web")
-
-#Extract names 
-EXT_suffixes <- c(
-  "EDU_ORG_WEB", "EDU_ORG_IOS", "EDU_ORG_AND", "EDU_MAR_WEB",
-  "B2C_ORG_WEB", "B2C_ORG_IOS", "B2C_ORG_AND", "B2C_MAR_WEB",
-  "B2B_ORG_WEB", "B2B_MAR_WEB"
-)
 
 #Generate extract names
 full_combos <- expand.grid(
@@ -946,37 +923,11 @@ for (model_name in M_names) {
 
 ############ Performance Metrics
 
-#Names
-TSU_APE_names <- paste0(TSU_names, "_APE")
-EDU_APE_names <- paste0(EDU_names, "_APE")
-B2C_APE_names <- paste0(B2C_names, "_APE")
-B2B_APE_names <- paste0(B2B_names, "_APE")
-
-#Function
-compile_APE <- function(ape_names){
-  
-  #Initialize dataset with the first model
-  All_APE <- get(ape_names[1])
-  
-  #Merge and compile metrics from all models
-  for (ape_name in ape_names[-1]) {
-    All_APE <- merge(All_APE, get(ape_name), by="Metric", all=TRUE)
-  }
-  
-  #Reorder Metrics
-  All_APE <- All_APE %>% 
-    arrange(factor(Metric, levels = c('mape','mdape','smape','mae')))
-  
-  return(All_APE)
-}
-
 #Table
 TSU_APE <- compile_APE(TSU_APE_names)
 EDU_APE <- compile_APE(EDU_APE_names)
 B2C_APE <- compile_APE(B2C_APE_names)
 B2B_APE <- compile_APE(B2B_APE_names)
 
-
 #End timer
 PM_end <- Sys.time() - PM_start
-
