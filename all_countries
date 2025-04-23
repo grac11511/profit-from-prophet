@@ -172,7 +172,7 @@ compile_APE <- function(ape_names){
 }
 
 #Construct Extracts for MAU Model 
-process_model_extracts <- function(prefix, user_type, signup_channel, platform, scenario = "Incl Marketing") {
+process_model_extracts <- function(prefix, user_type, signup_channel, platform, scenario = M_scenario) {
   
   #Select relevant models 
   df <- All_F %>%
@@ -211,15 +211,17 @@ D_ActualStart <- as.Date("2022-01-01")
 #Date Marketing Spend Switches from Actual to Forecast 
 D_MS_AtoF <- as.Date("2025-03-31")
 
-#Forecast: Q1 2025
+#Forecast: Q1 2025 (Jan 2025 - Dec 2025)
+#M_scenario <- "Q1Forecast"
 #D_ForecastStart <- as.Date("2025-01-01")
 #D_ForecastEnd <- as.Date("2025-12-31")
 
-#Forecast: Q2 2025
+#Forecast: Q2 2025 
 #D_ForecastStart <- as.Date("2025-04-01")
 #D_ForecastEnd <- as.Date("2025-12-31")
 
-#Forecast: Q2 2025
+#Forecast: Q2 2025 (Apr 2025 - Mar 2026)
+M_scenario <- "Q2Forecast"
 D_ForecastStart <- as.Date("2025-04-01")
 D_ForecastEnd <- as.Date("2026-03-31")
 
@@ -303,8 +305,8 @@ country_FN_list <- c(
   "Mexico"
 )
 
-#country_SN <- "US"
-#country_FN <- "United States of America"
+country_SN <- "US"
+country_FN <- "United States of America"
 
 # User Journey Lists ------------------------------------------------------
 
@@ -747,7 +749,7 @@ B2B_Co <- compile_Co(B2B_Co_names)
 All_tabs <- list('TSU_A'=TSU_A,'EDU_A'=EDU_A,'B2C_A'=B2C_A,'B2B_A'=B2B_A,
                  'TSU_F'=TSU_F,'EDU_F'=EDU_F,'B2C_F'=B2C_F,'B2B_F'=B2B_F,
                  'TSU_Co'=TSU_Co,'EDU_Co'=EDU_Co,'B2C_Co'=B2C_Co,'B2B_Co'=B2B_Co
-#                 'TSU_APE'=TSU_APE,'EDU_APE'=EDU_APE,'B2C_APE'=B2C_APE,'B2B_APE'=B2B_APE
+#                 ,'TSU_APE'=TSU_APE,'EDU_APE'=EDU_APE,'B2C_APE'=B2C_APE,'B2B_APE'=B2B_APE
 )
 
 #Output as CSV
@@ -766,6 +768,10 @@ paste0("Excellent. It takes approx ",format(F_end, digits = 2)," to forecast one
 EDU_F$ds <- as.Date(as.POSIXct(EDU_F$ds, 'GMT'))
 B2C_F$ds <- as.Date(as.POSIXct(B2C_F$ds, 'GMT'))
 B2B_F$ds <- as.Date(as.POSIXct(B2B_F$ds, 'GMT'))
+
+#Option 4: Create Extract from Prior Extract 
+#Prior_Extract <- fread(file=paste0(output_directory, "2025.04.22_Outputs_TSU_AllCountries", ".xlsx"), 
+#                           check.names = TRUE) 
 
 #Merge together all models 
 All_F <- EDU_F %>% 
@@ -801,8 +807,8 @@ Extract_A_D <- SU %>%
   rename(SignupChannel = SIGNUP_SOURCE) %>% 
   rename(Signups = TOTAL_SIGNUPS) %>% 
   filter(ds >= D_ActualStart) %>%
-  filter(ds <= D_MS_AtoF) %>% 
-  mutate(Scenario = "Incl Marketing") %>%
+  filter(ds < D_ForecastStart) %>% 
+  mutate(Scenario = M_scenario) %>%
   select(ds, Region, UserType, Platform, SignupChannel, Scenario, Signups) 
 
 #Merge in forecasts with actuals
@@ -817,7 +823,8 @@ Extract_A_D <- Extract_A_D %>%
   mutate(Region = str_replace_all(
     as.character(Region),
     c(
-      "\\bUnited States of America\\b" = "US"
+      "\\bUnited States of America\\b" = "US",
+      "\\bUnited Kingdom\\b" = "UK"
     )
   ))
 
@@ -826,9 +833,10 @@ Extract_F_D <- Extract_F_D %>%
   mutate(Region = str_replace_all(
     as.character(Region),
     c(
+      "\\bUnited States of America\\b" = "US",
       "\\bCA\\b" = "Canada", 
       "\\bAU\\b" = "Australia", 
-      "\\bUK\\b" = "United Kingdom", 
+      "\\bUnited Kingdom\\b" = "UK", 
       "\\bBR\\b" = "Brazil", 
       "\\bJP\\b" = "Japan", 
       "\\bIN\\b" = "India", 
@@ -846,11 +854,11 @@ Extract_F_D <- Extract_F_D %>%
 Extract_A_D <- as_tibble(Extract_A_D)
 
 #Option 1: New extract, merge actuals and forecast
-Extract_AF <- Extract_A_D %>% 
-  full_join(Extract_F_D, by = c("Date", "Region", "UserType", "SignupChannel", "Platform", "Scenario"))
+#Extract_AF <- Extract_A_D %>% 
+#  full_join(Extract_F_D, by = c("Date", "Region", "UserType", "SignupChannel", "Platform", "Scenario"))
 
 #Option 2: Build onto old extract, use forecast extract only
-Extract_AF <- Extract_F_D
+#Extract_AF <- Extract_F_D
 
 #Option 3: New extract, no scenarios 
 Extract_AF <- rbind(Extract_A_D,Extract_F_D)
@@ -876,13 +884,13 @@ Extract_AF <- Extract_AF %>%
 C_MonthlyExtractRows <- nrow(Extract_AF)
 
 #Option 2: Build onto old extract
-Extract_0325_1225 <- fread(file=paste0(output_directory, "2025.04.10_Signups_Extract_0325_1225", ".csv"), 
-                           check.names = TRUE) 
-Extract_0325_1225$Date <- as.Date(Extract_0325_1225$Date)
-Extract_AF <- Extract_AF %>% 
-  rename(SignupsForecast2 = SignupsForecast)
-Extract_AF <- Extract_0325_1225 %>% 
-  full_join(Extract_AF, by = c("Date", "Region", "UserType", "SignupChannel", "Platform", "Scenario"))
+#Extract_0325_1225 <- fread(file=paste0(output_directory, "2025.04.10_Signups_Extract_0325_1225", ".csv"), 
+#                           check.names = TRUE) 
+#Extract_0325_1225$Date <- as.Date(Extract_0325_1225$Date)
+#Extract_AF <- Extract_AF %>% 
+#  rename(SignupsForecast2 = SignupsForecast)
+#Extract_AF <- Extract_0325_1225 %>% 
+#  full_join(Extract_AF, by = c("Date", "Region", "UserType", "SignupChannel", "Platform", "Scenario"))
 
 #Output as CSV
 write.csv(Extract_AF, file = paste0(output_directory, as.character(Today_Text), "_", "Signups_Extract",".csv"), row.names = FALSE)
@@ -894,11 +902,16 @@ C_MonthlyExtractRows
 
 # Regression Metrics ------------------------------------------------------
 
+All_M_names <- unlist(lapply(country_SN_list, function(country) {
+  gsub("_MX_", paste0("_", country, "_"), M_names)
+}))
+
+
 #Start timer
 PM_start <- Sys.time()
 
 #Perform cross validation and calculate performance metrics for each model
-for (model_name in M_names) {
+for (model_name in All_M_names) {
   
   #Perform cross-validation
   model_cv <- cross_validation(
@@ -931,3 +944,10 @@ B2B_APE <- compile_APE(B2B_APE_names)
 
 #End timer
 PM_end <- Sys.time() - PM_start
+
+# Regressor Table ---------------------------------------------------------
+Regressor_tabs <- list('MSCam'=regressor_tbl,
+                 'Hols'=Holidays_filtered
+                 )
+#Output as CSV
+write.xlsx(Regressor_tabs, file = paste0(output_directory, as.character(Today_Text), "_", "RegressorTable_US", "_",".xlsx"))
