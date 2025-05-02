@@ -209,31 +209,12 @@ process_model_extracts <- function(prefix, user_type, signup_channel, platform, 
 D_ActualStart <- as.Date("2022-01-01")
 
 #Date Marketing Spend Switches from Actual to Forecast 
-D_MS_AtoF <- as.Date("2025-03-31")
+D_MS_AtoF <- as.Date("2025-04-30")
 
-#Forecast: Q1 2025 (Jan 2025 - Dec 2025)
-#M_scenario <- "Q1Forecast"
-#D_ForecastStart <- as.Date("2025-01-01")
-#D_ForecastEnd <- as.Date("2025-12-31")
-
-#Forecast: Q2 2025 
-#D_ForecastStart <- as.Date("2025-04-01")
-#D_ForecastEnd <- as.Date("2025-12-31")
-
-#Forecast: Q2 2025 (Apr 2025 - Mar 2026)
+#Forecast: Q2 2025 (May 2025 - Apr 2026)
 M_scenario <- "Q2Forecast"
-D_ForecastStart <- as.Date("2025-04-01")
-D_ForecastEnd <- as.Date("2026-03-31")
-
-#Holdout: Jan 2025 - Mar 2025
-#HO <- "HO25"
-#D_ForecastStart <- as.Date("2025-01-01")
-#D_ForecastEnd <- as.Date("2025-03-31")
-
-#Holdout: Jan 2024 - Dec 2024
-#HO <- "HO24"
-#D_ForecastStart <- as.Date("2024-01-01")
-#D_ForecastEnd <- as.Date("2024-12-31")
+D_ForecastStart <- as.Date("2025-05-01")
+D_ForecastEnd <- as.Date("2026-04-30")
 
 #Today 
 Today <- now()
@@ -246,13 +227,13 @@ input_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting 
 output_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/03. Prophet Outputs/"
 
 #Import Data sets
-SU <- fread(file=paste0(input_directory, "2025.04.04 Signups", ".csv"), 
+SU <- fread(file=paste0(input_directory, "2025.05.02 Signups", ".csv"), 
             check.names = TRUE)
 Holidays <- fread(file=paste0(input_directory, "2025.04.04 collated_holidays", ".csv"), 
                   check.names = TRUE)
 Campaigns <- fread(file=paste0(input_directory, "2025.03.18 Campaigns", ".csv"), 
                    check.names = TRUE)
-MS_AF_W <- fread(file=paste0(input_directory, "2025.04.10 Looker_MS_AF_W", ".csv"), 
+MS_AF_W <- fread(file=paste0(input_directory, "2025.05.02 Looker_MS_AF_W", ".csv"), 
                  check.names = TRUE)
 MS_F_M <- fread(file=paste0(input_directory, "2025.04.08 MS_F_M", ".csv"), 
                 check.names = TRUE) 
@@ -651,10 +632,14 @@ for (i in seq_along(country_SN_list)) {
   CC_MS <- rbind(CC_MS_AF_W,CC_MS_F_M)
   
   CC_MS$perMar[is.na(CC_MS$perMar)] <- 0
+  CC_MS$perMar[is.nan(CC_MS$perMar)] <- 0
   
   #Merge in Marketing Spend to regressor table
   regressor_tbl <- merge(regressor_tbl,CC_MS,by = "ds",all.x = TRUE)
   assign(regressor_tblname, regressor_tbl)
+  
+  regressor_tbl$perMar[is.na(regressor_tbl$perMar)] <- 0
+  regressor_tbl$perMar[is.nan(regressor_tbl$perMar)] <- 0
   
   # Manual Adjustments ------------------------------------------------------
   
@@ -905,7 +890,6 @@ C_MonthlyExtractRows
 All_M_names <- unlist(lapply(country_SN_list, function(country) {
   gsub("_MX_", paste0("_", country, "_"), M_names)
 }))
-
 
 #Start timer
 PM_start <- Sys.time()
