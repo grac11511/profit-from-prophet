@@ -1191,22 +1191,24 @@ process_model_extracts("M20", user_type = "B2C", signup_channel = "marketing", p
 process_model_extracts("M23", user_type = "B2B", signup_channel = "organic", platform = "web")
 process_model_extracts("M26", user_type = "B2B", signup_channel = "marketing", platform = "web")
 
-#Generate extract names
+#Generate full extract list
 full_combos <- expand.grid(
   country = SN_list,
   suffix = EXT_suffixes,
   stringsAsFactors = FALSE
 )
 
+#Excluded extracts
+excl_ext_suffixes <- c("EDU_MAR_WEB", "B2C_MAR_WEB", "B2B_MAR_WEB")
+
+#Generate excluded extracts
 excl_combos <- expand.grid(
   country = region_SN_list,
   suffix = excl_ext_suffixes,
   stringsAsFactors = FALSE
 )
 
-excl_ext_suffixes <- c("EDU_MAR_WEB", "B2C_MAR_WEB", "B2B_MAR_WEB")
-
-
+#Create lists and exclude 
 All_EXT_names <- paste0(full_combos$country, "_", full_combos$suffix, "_EXT")
 Excl_EXT_names <- paste0(excl_combos$country, "_", excl_combos$suffix, "_EXT")
 All_EXT_names <- setdiff(All_EXT_names, Excl_EXT_names)
