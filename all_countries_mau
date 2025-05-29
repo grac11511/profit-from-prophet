@@ -67,6 +67,7 @@ prophet_forecast <- function(name, actuals, regressors, holidays) {
                    daily.seasonality = FALSE, 
                    weekly.seasonality = 4, #4
                    yearly.seasonality = 9.5, #9.5
+                   seasonality.mode = 'multiplicative',
                    changepoint.prior.scale = 0.05, 
                    seasonality.prior.scale = 10, 
                    holidays.prior.scale = 10
@@ -101,6 +102,7 @@ prophet_forecast_regions <- function(name, actuals, regressors, holidays) {
                    daily.seasonality = FALSE, 
                    weekly.seasonality = 4, #4
                    yearly.seasonality = 9.5, #9.5
+                   seasonality.mode = 'multiplicative',
                    changepoint.prior.scale = 0.05, 
                    seasonality.prior.scale = 10, 
                    holidays.prior.scale = 10
@@ -242,12 +244,12 @@ process_model_extracts <- function(prefix, user_type, platform, scenario = M_sce
 D_ActualStart <- as.Date("2022-01-01")
 
 #Date Marketing Spend Switches from Actual to Forecast 
-D_MS_AtoF <- as.Date("2025-03-31")
+D_MS_AtoF <- as.Date("2025-04-30")
 
 #Forecast: Q2 2025 (April 2025 - Apr 2026)
 M_scenario <- "Q2Forecast"
-D_ForecastStart <- as.Date("2025-04-01")
-D_ForecastEnd <- as.Date("2026-04-30")
+D_ForecastStart <- as.Date("2025-05-01")
+D_ForecastEnd <- as.Date("2026-05-31")
 
 #Today 
 Today <- now()
@@ -356,11 +358,11 @@ country_FN_list <- c(
 #country_FN <- "United States of America" 
 
 region_SN_list <- c(
-  "DA", "EA", "EE", "WE", "LA", "ME", "KR"
+  "DA", "EA", "EE", "WE", "LA", "ME", "KR","CN"
 )
 region_FN_list <- c(
   "Developed APAC", "Emerging APAC", "Eastern Europe", "Western Europe", "LATAM", 
-  "Middle East & Africa", "South Korea"
+  "Middle East & Africa", "South Korea", "China"
 )
 
 # Model Lists ------------------------------------------------------
@@ -1001,6 +1003,7 @@ Extract_F_D <- Extract_F_D %>%
       "\\bES\\b" = "Spain", 
       "\\bIT\\b" = "Italy", 
       "\\bMX\\b" = "Mexico",
+      "\\bCN\\b" = "China",
       "\\bDA\\b" = "Developed APAC", 
       "\\bEA\\b" = "Emerging APAC", 
       "\\bEE\\b" = "Eastern Europe", 
