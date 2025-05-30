@@ -26,7 +26,7 @@ Loaded from a defined input directory:
 - `Looker_MS_AF_W.csv`: Weekly actual marketing spend. The historical marketing spend has been retrieved from <a href="https://canvalooker.au.looker.com/explore/marketing_and_engagement/marketing_spend_pacing?toggle=fil&qid=Fjgzh9s1hKVylNTp0S9dHO" target="_blank">Looker</a>
 - `MS_F_M.csv`: Monthly marketing budget forecasts. The marketing spend budget is retrieved from the `Finance` tab in <a href="https://docs.google.com/spreadsheets/d/14gZr9yRIwZ8c_sv5KOVUF8ZLZfZWXef9yL5BrewoO3c/edit?gid=1035177928#gid=1035177928" target="_blank">B2C Go-to-Market budget</a>. This weekly data is transformed into daily spend by taking the average spend per day. 
 
-### Key Dates
+### Key Dates & Inputs
 - `D_ActualStart`: Earliest signup data point
 - `D_MS_AtoF`: Switch from actual to forecasted marketing spend
 - `D_ForecastStart` / `D_ForecastEnd`: Forecasting window
