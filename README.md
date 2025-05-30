@@ -1,135 +1,121 @@
-# The Project 
+# 📄 Design Document: Multi-Country Signup Forecasting Pipeline Using Prophet in R
 
-This project forecasts daily sign-ups using Facebook's forecasting package <a href="https://cran.r-project.org/web/packages/prophet/prophet.pdf" target="_blank">Prophet</a> in R Studio. 
+## 📌 Objective
 
-# Dimensions
+To forecast daily signups across multiple countries, regions, and user journey segments using the <a href="https://cran.r-project.org/web/packages/prophet/prophet.pdf" target="_blank">Prophet</a> package. The system dynamically integrates marketing spend, campaigns, holidays, and other regressors. It also compiles coefficients and generates an extract of all signups forecasts that inputs into the MAU forecast model.
 
-#### 22 Regions:
-- US
-- Canada
-- UK
-- Australia
-- Brazil
-- Japan
-- South Korea
-- India
-- Indonesia
-- Philippines
-- Mexico
-- China
-- France
-- Germany
-- Italy
-- Spain
-- Rest of World: APAC
-- Rest of World: Western Europe
-- Rest of World: Emerging APAC
-- Rest of World: LATAM
-- Rest of World: Middle East & Africa
-- Rest of World: Eastern Europe
+---
 
-#### 3 User Journey Types:
-- Education
-- B2B
-- B2C
+## 📦 Dependencies
 
-#### 3 Platforms:
-- Android
-- Web
-- iOS
+### Installed Packages
+- **Data Handling**: `data.table`, `tibble`, `dplyr`, `tidyr`, `plyr`, `lubridate`, `stringr`, `magrittr`
+- **Modeling**: `prophet`, `mgsub`
+- **Exporting**: `openxlsx`
+- **Utilities**: `DatabaseConnector` (used for date utilities like `eoMonth`)
 
-#### 3 Sign-up Sources: 
-- Marketing sign-ups (paid)
-- Organic sign-ups (direct and SEO) 
+---
 
-# Regressors
+## 📁 Inputs & Configuration
 
-This project employs 4 regressors. 
+### Input Files
+Loaded from a defined input directory:
+- `Signups.csv`: Raw historical signup data.
+- `collated_holidays.csv`: National holidays per country using the `generated_holiday.csv` made by <a href="https://github.com/facebook/prophet/blob/main/R/data-raw/generated_holidays.csv" target="_blank">tcuongd</a> as a base, the relevant holidays for regions have been collated with additional holidays that do not appear as national holidays also included. For example, Easter is not officially a national holiday in the US, however, it has an impact on signups, therefore, the `generated_holidays.csv` has been patched accordingly.
+- `Campaigns.csv`: Binary daily campaign indicators that indicates when large <a href="https://www.canva.com/design/DAGhA6JlVV8/uqkHv6dBdYmRLxMG4PXUIQ/edit" target="_blank">promotional campaigns</a> have run. 
+- `Looker_MS_AF_W.csv`: Weekly actual marketing spend. The historical marketing spend has been retrieved from <a href="https://canvalooker.au.looker.com/explore/marketing_and_engagement/marketing_spend_pacing?toggle=fil&qid=Fjgzh9s1hKVylNTp0S9dHO" target="_blank">Looker</a>
+- `MS_F_M.csv`: Monthly marketing budget forecasts. The marketing spend budget is retrieved from the `Finance` tab in <a href="https://docs.google.com/spreadsheets/d/14gZr9yRIwZ8c_sv5KOVUF8ZLZfZWXef9yL5BrewoO3c/edit?gid=1035177928#gid=1035177928" target="_blank">B2C Go-to-Market budget</a>. This weekly data is transformed into daily spend by taking the average spend per day. 
 
-### 1) Holidays `[0,1]`
-Using the `generated_holiday.csv` made by <a href="https://github.com/facebook/prophet/blob/main/R/data-raw/generated_holidays.csv" target="_blank">tcuongd</a> as a base, the relevant holidays for regions have been collated with additional holidays that do not appear as national holidays also included. For example, Easter is not officially a national holiday in the US, however, it has an impact on sign-ups, therefore, the `generated_holidays.csv` has been patched accordingly.
+### Key Dates
+- `D_ActualStart`: Earliest signup data point
+- `D_MS_AtoF`: Switch from actual to forecasted marketing spend
+- `D_ForecastStart` / `D_ForecastEnd`: Forecasting window
+- `M_scenario`: Label for scenario tagging (e.g., "Q2Forecast")
 
-### 2) Performance Marketing (perMar) `[numeric]`
-The historical monthly US marketing spend has been retrieved from <a href="https://canvalooker.au.looker.com/explore/marketing_and_engagement/marketing_spend_pacing?qid=NvoigkJQ18tDF0H4wetK6I&toggle=fil,vis" target="_blank">Looker</a> whilst the marketing spend budget is retrieved from <a href="https://docs.google.com/spreadsheets/d/1axKaqcPfyrkj2YaVDCN0K641uJDsBAlVFipQshugdvY/edit?gid=0#gid=0" target="_blank">B2C Go-to-Market team</a>. This weekly data is transformed into daily spend by taking the average spend per day. 
+---
 
-### 3) Campaign Dates `[0,1]`
-Indicates when large <a href="https://www.canva.com/design/DAGhA6JlVV8/uqkHv6dBdYmRLxMG4PXUIQ/edit" target="_blank">promotional campaigns</a> have run. 
+## 🧠 Core Functions
 
-### 4) Country Manager `[0,1]`
-Indicates when a region has introduced a country manager. 
+| Function | Purpose |
+|---------|---------|
+| `transpose_df` | Transposes and formats coefficient matrices |
+| `prophet_forecast_country` | Trains a Prophet model with regressors |
+| `prophet_forecast_region` | Trains a Prophet model without regressors |
+| `compile_actuals`, `compile_forecasts`, `compile_Co`, `compile_APE` | Aggregates model outputs |
+| `process_model_extracts` | Structures forecasts for MAU extract by user type and platform |
 
-# Variable Naming
+---
 
-`[model version]_[country]_[y]_[aspect]_[A/F]`
+## 🌍 Regions 
 
-### 1) `[model version]` 
+### Countries 
+- `US`, `Canada`, `Australia`, `UK`, `Brazil`, `Japan`, `South Korea`, `India`, `Indonesia`, `Phillipines`, `France`, `Germany`, `Spain`, `Italy`, `Mexico`
+- Forecast at the country level with regressors.
+- Models are trained and forecasts are generated for various user journey segments.
 
-`M(1,2,3...)`: the model as it appears in the script.
+### Regions 
+- `Emerging APAC`, `Developed APAC`, `East Europe`, `West Europe`, `LATAM`, `Middle East and Africa`
+- Forecast at the region level without regressors due to data limitations.
+- Reuses much of the country-level logic.
 
-### 2) `[country]` 
+---
 
-`[country]`: [US, AU, etc.]
+## 🏗️ Dimensions 
 
-### 3) `[y]` Forecast Dimensions
+### User Journey Models
+Each country/region is split into segments:
+- **User Types**: `Edu`, `B2C`, `B2B`
+- **Signup Sources**: `organic` (direct and SEO), `marketing` (paid)
+- **Platforms**: `web`, `iOS`, `Android`
 
-`TSU` Total Sign ups
+### Model Data Components
+- `*_A`: Actuals
+- `*_F`: Forecasts
+- `*_Co`: Coefficients
 
-Customer Type: 
-- `EDU`
-- `B2B`
-- `B2C`
+---
 
-Sign-up Source:
-- `MAR`: sign-ups from marketing
-- `ORG`: organic sign-ups
+## 🔢 Forecasting Workflow
 
-Platform:
-- `AND`: Android
-- `WEB`: Web
-- `iOS`: iOS
+### For each country/region:
+1. **Preprocess signup data**:
+   - Filter by country/region
+   - Create splits for each user journey segment
 
-### 4) `[aspect]` 
+2. **Create regressors**:
+   - Marketing Spend (actuals + forecasts)
+   - Campaign dates
+   - Public holidays
 
-- `MS`: Marketing spend (regressors) 
-- `F`: Forecast
-- `TF`: Timeframe
-- `CV`: Cross validation
-- `PM`: Performance metrics
+3. **Train Prophet models**:
+   - Add regressors (for countries only)
+   - Generate forecasts
+   - Clamp negatives to zero
 
-### 5) `[A/F]`
-- `A`: Actuals
-- `F`: Forecast
+4. **Extract coefficients** from the trained Prophet models
 
-# Model Directory
-An example for US models with one regressor e.g. holidays. 
+5. **Visualize forecasts** using base Prophet plotting
 
-| **#** | **Region** | **User Journey** | **Source** | **Platform** | **Model Name**        |
-| ----- | ---------- | ---------------- | ---------- | ------------ | --------------------- |
-| 1     | US         | TSU              |            |              | M1_R3_US_TSU          |
-| 2     | US         | EDU              |            |              | M2_R3_US_EDU          |
-| 3     | US         | B2C              |            |              | M3_R3_US_B2C          |
-| 4     | US         | B2B              |            |              | M4_R3_US_B2B          |
-| 5     | US         | EDU              | ORG        |              | M5_R3_US_EDU_ORG      |
-| 6     | US         | EDU              | MAR        |              | M6_R3_US_EDU_MAR      |
-| 7     | US         | B2C              | ORG        |              | M7_R3_US_B2C_ORG      |
-| 8     | US         | B2C              | MAR        |              | M8_R3_US_B2C_MAR      |
-| 9     | US         | B2B              | ORG        |              | M9_R3_US_B2B_ORG      |
-| 10    | US         | B2B              | MAR        |              | M10_R3_US_B2B_MAR     |
-| 11    | US         | EDU              | ORG        | WEB          | M11_R3_US_EDU_ORG_WEB |
-| 12    | US         | EDU              | ORG        | IOS          | M12_R3_US_EDU_ORG_IOS |
-| 13    | US         | EDU              | ORG        | AND          | M13_R3_US_EDU_ORG_AND |
-| 14    | US         | EDU              | MAR        | WEB          | M14_R3_US_EDU_MAR_WEB |
-| 15    | US         | EDU              | MAR        | IOS          | M15_R3_US_EDU_MAR_IOS |
-| 16    | US         | EDU              | MAR        | AND          | M16_R3_US_EDU_MAR_AND |
-| 17    | US         | B2C              | ORG        | WEB          | M17_R3_US_B2C_ORG_WEB |
-| 18    | US         | B2C              | ORG        | IOS          | M18_R3_US_B2C_ORG_IOS |
-| 19    | US         | B2C              | ORG        | AND          | M19_R3_US_B2C_ORG_AND |
-| 20    | US         | B2C              | MAR        | WEB          | M20_R3_US_B2C_MAR_WEB |
-| 21    | US         | B2C              | MAR        | IOS          | M21_R3_US_B2C_MAR_IOS |
-| 22    | US         | B2C              | MAR        | AND          | M22_R3_US_B2C_MAR_AND |
-| 23    | US         | B2B              | ORG        | WEB          | M23_R3_US_B2B_ORG_WEB |
-| 24    | US         | B2B              | ORG        | IOS          | M24_R3_US_B2B_ORG_IOS |
-| 25    | US         | B2B              | ORG        | AND          | M25_R3_US_B2B_ORG_AND |
-| 26    | US         | B2B              | MAR        | WEB          | M26_R3_US_B2B_MAR_WEB |
-| 27    | US         | B2B              | MAR        | IOS          | M27_R3_US_B2B_MAR_IOS |
-| 28    | US         | B2B              | MAR        | AND          | M28_R3_US_B2B_MAR_AND |
+---
+
+## 📤 Output Generation
+
+### Final Outputs
+1. `All_A.xlsx`: Combined actuals
+2. `All_F.xlsx`: Combined forecasts
+3. `All_Co.xlsx`: Combined model coefficients
+4. `Signups_Extract.csv`: Extract at a monthly resolution, segmented by the following dimensions:
+   - Date
+   - Region
+   - User Type
+   - Signup Channel
+   - Platform
+   - Scenario
+
+---
+
+## ⚠️ Known Considerations
+
+- Regressors only apply to country models, not regions.
+- `prophet_plot_components()` currently commented out—could be included for further analysis.
+- Run `Package Installation` line by line prior to all other sections. 
