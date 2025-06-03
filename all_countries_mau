@@ -62,13 +62,14 @@ transpose_df <- function(df) {
 prophet_forecast <- function(name, actuals, regressors, holidays) {
   
   #Create model with specified parameters
-  model <- prophet(changepoint.range = 1, #1 
+  model <- prophet(changepoint.range = 0.7, #1 #0.85
                    holidays = holidays,
                    daily.seasonality = FALSE, 
                    weekly.seasonality = 4, #4
                    yearly.seasonality = 9.5, #9.5
                    seasonality.mode = 'multiplicative',
-                   changepoint.prior.scale = 0.05, 
+                   #changepoints = as.Date(c("2025-03-01")),
+                   changepoint.prior.scale = 0.05, #0.05
                    seasonality.prior.scale = 10, 
                    holidays.prior.scale = 10
   )
@@ -97,7 +98,7 @@ prophet_forecast <- function(name, actuals, regressors, holidays) {
 prophet_forecast_add <- function(name, actuals, regressors, holidays) {
   
   #Create model with specified parameters
-  model <- prophet(changepoint.range = 1, #1 
+  model <- prophet(changepoint.range = 0.7, #1 
                    holidays = holidays,
                    daily.seasonality = FALSE, 
                    weekly.seasonality = 4, #4
@@ -132,7 +133,7 @@ prophet_forecast_add <- function(name, actuals, regressors, holidays) {
 prophet_forecast_regions <- function(name, actuals, regressors, holidays) {
   
   #Create model with specified parameters
-  model <- prophet(changepoint.range = 1, #1 
+  model <- prophet(changepoint.range = 0.7, #1 
                    holidays = holidays,
                    daily.seasonality = FALSE, 
                    weekly.seasonality = 4, #4
@@ -165,7 +166,7 @@ prophet_forecast_regions <- function(name, actuals, regressors, holidays) {
 prophet_forecast_regions_add <- function(name, actuals, regressors, holidays) {
   
   #Create model with specified parameters
-  model <- prophet(changepoint.range = 1, #1 
+  model <- prophet(changepoint.range = 0.7, #1 
                    holidays = holidays,
                    daily.seasonality = FALSE, 
                    weekly.seasonality = 4, #4
@@ -193,7 +194,6 @@ prophet_forecast_regions_add <- function(name, actuals, regressors, holidays) {
   assign(name, model, envir = .GlobalEnv)
   assign(paste0(name, "_F"), forecast, envir = .GlobalEnv)
 }
-
 
 #Compile Actuals
 compile_actuals <- function(A_names){
@@ -313,11 +313,11 @@ process_model_extracts <- function(prefix, user_type, platform, scenario = M_sce
 D_ActualStart <- as.Date("2022-01-01")
 
 #Date Marketing Spend Switches from Actual to Forecast 
-D_MS_AtoF <- as.Date("2025-04-30")
+D_MS_AtoF <- as.Date("2025-05-31")
 
 #Forecast: Q2 2025 (April 2025 - Apr 2026)
-M_scenario <- "Q2Forecast"
-D_ForecastStart <- as.Date("2025-05-01")
+M_scenario <- "Q3Forecast"
+D_ForecastStart <- as.Date("2025-06-01")
 D_ForecastEnd <- as.Date("2026-05-31")
 
 #Today 
@@ -335,18 +335,18 @@ input_directory <- paste0("/Users/", user, "/Library/CloudStorage/Box-Box/Intern
 output_directory <- paste0("/Users/", user, "/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/08. Prophet Model (MAU)/Outputs/")
 
 #Import Data sets
-MAU <- fread(file=paste0(input_directory, "20.05.2025MAU", ".csv"), 
-            check.names = TRUE)
-Holidays <- fread(file=paste0(input_directory, "2025.05.20 collated_holidays", ".csv"), 
+MAU <- fread(file=paste0(input_directory, "02.06.2025MAU", ".csv"), 
+             check.names = TRUE)
+Holidays <- fread(file=paste0(input_directory, "2025.05.30 collated_holidays", ".csv"), 
                   check.names = TRUE)
 Campaigns <- fread(file=paste0(input_directory, "2025.03.18 Campaigns", ".csv"), 
                    check.names = TRUE)
-MS_AF_W <- fread(file=paste0(input_directory, "2025.05.02 Looker_MS_AF_W", ".csv"), 
+MS_AF_W <- fread(file=paste0(input_directory, "2025.06.02 Looker_MS_AF_W", ".csv"), 
                  check.names = TRUE)
-MS_F_M <- fread(file=paste0(input_directory, "2025.04.08 MS_F_M", ".csv"), 
+MS_F_M <- fread(file=paste0(input_directory, "2025.06.03 MS_F_M", ".csv"), 
                 check.names = TRUE)
 SchoolHols <- fread(file=paste0(input_directory, "SchoolHolidays", ".csv"), 
-                check.names = TRUE) 
+                    check.names = TRUE) 
 
 # Cleaning & Transformation -----------------------------------------------
 
@@ -414,7 +414,8 @@ SchoolHols <- SchoolHols %>%
 # Country List ------------------------------------------------------------
 
 country_SN_list <- c(
-  "US", "CA", "AU", "UK", "BR", "JP", "IN", "ID", "PH", "FR", "DE", "ES", "IT", "MX"
+  "US", "CA", "AU", "UK", "BR", "JP", "IN", "ID", "PH", "FR", "DE",
+  "ES", "IT", "MX"
 )
 country_FN_list <- c(
   "United States of America", "Canada", "Australia", "United Kingdom", "Brazil", 
@@ -475,7 +476,7 @@ EXT_suffixes <- c(
 FC_start <- Sys.time()
 
 for (i in seq_along(country_SN_list)) {
-
+  
   country_SN <- country_SN_list[i]
   country_FN <- country_FN_list[i]
   
@@ -485,7 +486,7 @@ for (i in seq_along(country_SN_list)) {
   
   #Define suffixes for forecast splits
   split_suffixes <- c("EDU_WEB", "EDU_IOS", "EDU_AND")
-
+  
   #Create Forecast Splits
   B_names <- paste(country_SN, split_suffixes, sep = "_")
   B_num <- length(B_names)
@@ -526,7 +527,7 @@ for (i in seq_along(country_SN_list)) {
   #Filter for the selected country
   MAU_Country <- MAU_A %>%
     filter(REGION == country_FN)
-
+  
   #Assign the base country-level dataset (e.g., US_SU_A)
   assign(paste0(country_SN, "_MAU_A"), MAU_Country)
   
@@ -686,7 +687,7 @@ for (i in seq_along(country_SN_list)) {
   regressor_tbl$perMar[is.nan(regressor_tbl$perMar)] <- 0
   
   ############ Regressor: School Holidays (Actuals & Forecast) 
-
+  
   #Filter for country
   SchoolHols_filtered <- SchoolHols %>% 
     select(ds, all_of(country_FN)) %>%
@@ -694,10 +695,10 @@ for (i in seq_along(country_SN_list)) {
   
   #Format Date
   SchoolHols_filtered$ds <- as.Date(SchoolHols_filtered$ds, format = "%m/%d/%Y")
-
+  
   #Format as tibble
   SchoolHols_filtered <- as_tibble(SchoolHols_filtered)
-    
+  
   #Merge in School Holidays to regressor table
   regressor_tbl <- merge(regressor_tbl,SchoolHols_filtered,by = "ds",all.x = TRUE)
   
@@ -721,9 +722,9 @@ for (i in seq_along(country_SN_list)) {
             xlab("Year") +
             ylab("Sign Ups")
     )
-    
+  
     #Plot components
-    #prophet_plot_components(model, forecast)
+    #prophet_plot_components(M2_AU_EDU_IOS, M2_AU_EDU_IOS_F)
   }
   
   # Coefficients ------------------------------------------------------------
