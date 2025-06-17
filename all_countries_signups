@@ -240,7 +240,34 @@ prophet_forecast_country_noms <- function(name, actuals, regressors, holidays) {
   
 }
 
-#Prophet Forecasting (Regions & KR)
+#Prophet Forecasting (Regions & KR Education)
+prophet_forecast_region_m <- function(name, actuals, regressors, holidays) {
+  
+  #Create model with specified parameters
+  model <- prophet(changepoint.range = 0.7, #1 
+                   holidays = holidays,
+                   daily.seasonality = FALSE, 
+                   weekly.seasonality = 4, #4
+                   yearly.seasonality = 9.5, #9.5
+                   seasonality.mode = 'multiplicative',
+                   changepoint.prior.scale = 0.05, 
+                   seasonality.prior.scale = 10, 
+                   holidays.prior.scale = 10
+  )
+  
+  #Forecast 
+  model <- fit.prophet(model, actuals)
+  forecast <- predict(model, regressors)
+  
+  #Make negatives equal to 0 
+  forecast <- forecast %>% mutate(yhat = if_else(yhat < 0, 0, yhat))
+  
+  #Assign to model name
+  assign(name, model, envir = .GlobalEnv)
+  assign(paste0(name, "_F"), forecast, envir = .GlobalEnv)
+}
+
+#Prophet Forecasting (Regions & KR B2C/B2B)
 prophet_forecast_region <- function(name, actuals, regressors, holidays) {
   
   #Create model with specified parameters
@@ -1227,26 +1254,50 @@ FC_end <- Sys.time() - FC_start
 #Start timer
 FR_start <- Sys.time()
 
-#Region Loop
+#Region (Education) Loop
 for (i in seq_along(region_SN_list)) {
   run_regionloop_forecast(
-    category = "Regions",
+    category = "Regions Education",
     country_SN = region_SN_list[i],
     country_FN = region_FN_list[i],
-    split_suffixes = c("EDU_ORG_WEB", "EDU_ORG_IOS", "EDU_ORG_AND", "B2C_ORG_WEB", "B2C_ORG_IOS", "B2C_ORG_AND", "B2B_ORG_WEB"),
-    model_ids = c("M11", "M12", "M13", "M17", "M18", "M19", "M23"),
+    split_suffixes = c("EDU_ORG_WEB", "EDU_ORG_IOS", "EDU_ORG_AND"),
+    model_ids = c("M11", "M12", "M13"),
+    forecast_func = prophet_forecast_region_m
+  )
+}
+
+#Region (B2C/B2B) Loop
+for (i in seq_along(region_SN_list)) {
+  run_regionloop_forecast(
+    category = "Regions B2C/B2B",
+    country_SN = region_SN_list[i],
+    country_FN = region_FN_list[i],
+    split_suffixes = c("B2C_ORG_WEB", "B2C_ORG_IOS", "B2C_ORG_AND", "B2B_ORG_WEB"),
+    model_ids = c("M17", "M18", "M19", "M23"),
     forecast_func = prophet_forecast_region
   )
 }
 
-#KR Loop
+#KR (Education) Loop
 for (i in seq_along(KR_SN_list)) {
   run_regionloop_forecast(
-    category = "Korea",
+    category = "Korea Education",
     country_SN = KR_SN_list[i],
     country_FN = KR_FN_list[i],
-    split_suffixes = c("EDU_ORG_WEB", "EDU_ORG_IOS", "EDU_ORG_AND", "EDU_MAR_WEB", "B2C_ORG_WEB", "B2C_ORG_IOS", "B2C_ORG_AND", "B2C_MAR_WEB", "B2B_ORG_WEB", "B2B_MAR_WEB"),
-    model_ids = c("M11", "M12", "M13", "M14", "M17", "M18", "M19", "M20", "M23", "M26"),
+    split_suffixes = c("EDU_ORG_WEB", "EDU_ORG_IOS", "EDU_ORG_AND"),
+    model_ids = c("M11", "M12", "M13"),
+    forecast_func = prophet_forecast_region_m
+  )
+}
+
+#KR (B2C/B2B) Loop
+for (i in seq_along(KR_SN_list)) {
+  run_regionloop_forecast(
+    category = "Korea B2C/B2B",
+    country_SN = KR_SN_list[i],
+    country_FN = KR_FN_list[i],
+    split_suffixes = c("EDU_MAR_WEB", "B2C_ORG_WEB", "B2C_ORG_IOS", "B2C_ORG_AND", "B2C_MAR_WEB", "B2B_ORG_WEB", "B2B_MAR_WEB"),
+    model_ids = c("M14", "M17", "M18", "M19", "M20", "M23", "M26"),
     forecast_func = prophet_forecast_region
   )
 }
