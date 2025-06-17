@@ -96,6 +96,22 @@ Each country/region is split into segments:
 
 5. **Visualize forecasts** using base Prophet plotting
 
+### Variations in Forecasting 
+1. **Marketing Models**:
+   - Uses daily marketing spend as regressor 
+   - Additive seasonality mode
+  
+2. **Education Organic Models**:
+   - Multiplicative seasonality mode
+  
+3. **B2C/B2B Organic Models**:
+   - Additive seasonality mode
+
+4. **iOS & Android Models**:
+   - Uses weekly marketing spend as regressor 
+  
+5. **web Models**:
+   - Does not use marketing spend as regressor
 ---
 
 ## 📤 Output Generation
