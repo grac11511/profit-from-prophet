@@ -411,10 +411,10 @@ process_model_extracts <- function(prefix, user_type, signup_channel, platform, 
 D_ActualStart <- as.Date("2022-01-01")
 
 #Date Marketing Spend Switches from Actual to Forecast 
-D_MS_AtoF <- as.Date("2025-05-31")
+D_MS_AtoF <- as.Date("2025-06-30")
 
 #Forecast: Q2 2025 (May 2025 - Apr 2026)
-M_scenario <- "Jun25Forecast"
+M_scenario <- "Jul25Forecast"
 D_ForecastStart <- D_MS_AtoF + 1
 D_ForecastEnd <- D_ForecastStart + 365 - 1
 paste0("Actuals to Forecast Date: ", D_MS_AtoF, " Forecast Start: ", D_ForecastStart, " Forecast End: ", D_ForecastEnd)
@@ -429,23 +429,25 @@ Today_Text <- format(Today, "%Y.%m.%d")
 input_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/02. Prophet Inputs/"
 output_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/03. Prophet Outputs/"
 
-#Import Data sets
-SU <- fread(file=paste0(input_directory, "2025.06.02 Signups", ".csv"), 
-            check.names = TRUE)
+#Import Static Data sets
 Holidays <- fread(file=paste0(input_directory, "2025.06.04 collated_holidays", ".csv"), 
                   check.names = TRUE)
 Campaigns <- fread(file=paste0(input_directory, "2025.06.04 Campaigns", ".csv"), 
                    check.names = TRUE)
-MS_AF_W <- fread(file=paste0(input_directory, "2025.06.02 Looker_MS_AF_W", ".csv"), 
-                 check.names = TRUE)
-MS_A_D <- fread(file=paste0(input_directory, "2025.06.04 Looker_MS_A_D", ".csv"), 
-                 check.names = TRUE)
-MS_F_M <- fread(file=paste0(input_directory, "2025.06.02 MS_F_M", ".csv"), 
-                check.names = TRUE) 
 ClassDays <- fread(file=paste0(input_directory, "2025.06.04 Class Days", ".csv"), 
-                check.names = TRUE) 
+                   check.names = TRUE) 
 Outliers <- fread(file=paste0(input_directory, "2025.06.04 Outliers", ".csv"), 
-                   check.names = TRUE)
+                  check.names = TRUE)
+
+#Import Dynamic Data sets
+SU <- fread(file=paste0(input_directory, "2025.07.02 Signups", ".csv"), 
+            check.names = TRUE)
+MS_AF_W <- fread(file=paste0(input_directory, "2025.07.02 Looker_MS_AF_W", ".csv"), 
+                 check.names = TRUE)
+MS_A_D <- fread(file=paste0(input_directory, "2025.07.02 Looker_MS_A_D", ".csv"), 
+                 check.names = TRUE)
+MS_F_M <- fread(file=paste0(input_directory, "2025.07.02 MS_F_M", ".csv"), 
+                check.names = TRUE) 
 
 # Cleaning & Transformation -----------------------------------------------
 
