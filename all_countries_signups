@@ -411,10 +411,10 @@ process_model_extracts <- function(prefix, user_type, signup_channel, platform, 
 D_ActualStart <- as.Date("2022-01-01")
 
 #Date Marketing Spend Switches from Actual to Forecast 
-D_MS_AtoF <- as.Date("2025-06-30")
+D_MS_AtoF <- as.Date("2025-08-31")
 
 #Forecast: Q2 2025 (May 2025 - Apr 2026)
-M_scenario <- "Jul25Forecast"
+M_scenario <- "202509"
 D_ForecastStart <- D_MS_AtoF + 1
 D_ForecastEnd <- D_ForecastStart + 365 - 1
 paste0("Actuals to Forecast Date: ", D_MS_AtoF, " Forecast Start: ", D_ForecastStart, " Forecast End: ", D_ForecastEnd)
@@ -430,23 +430,23 @@ input_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting 
 output_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/03. Prophet Outputs/"
 
 #Import Static Data sets
-Holidays <- fread(file=paste0(input_directory, "2025.06.04 collated_holidays", ".csv"), 
+Holidays <- fread(file=paste0(input_directory, "2025.09.02 collated_holidays", ".csv"), 
                   check.names = TRUE)
 Campaigns <- fread(file=paste0(input_directory, "2025.06.04 Campaigns", ".csv"), 
                    check.names = TRUE)
-ClassDays <- fread(file=paste0(input_directory, "2025.06.04 Class Days", ".csv"), 
+ClassDays <- fread(file=paste0(input_directory, "2025.09.03 Class Days", ".csv"), 
                    check.names = TRUE) 
 Outliers <- fread(file=paste0(input_directory, "2025.06.04 Outliers", ".csv"), 
                   check.names = TRUE)
 
 #Import Dynamic Data sets
-SU <- fread(file=paste0(input_directory, "2025.07.02 Signups", ".csv"), 
+SU <- fread(file=paste0(input_directory, "2025.09.02 Signups", ".csv"), 
             check.names = TRUE)
-MS_AF_W <- fread(file=paste0(input_directory, "2025.07.02 Looker_MS_AF_W", ".csv"), 
+MS_AF_W <- fread(file=paste0(input_directory, "2025.09.02 Looker_MS_AF_W", ".csv"), 
                  check.names = TRUE)
-MS_A_D <- fread(file=paste0(input_directory, "2025.07.02 Looker_MS_A_D", ".csv"), 
+MS_A_D <- fread(file=paste0(input_directory, "2025.09.02 Looker_MS_A_D", ".csv"), 
                  check.names = TRUE)
-MS_F_M <- fread(file=paste0(input_directory, "2025.07.02 MS_F_M", ".csv"), 
+MS_F_M <- fread(file=paste0(input_directory, "2025.09.02 MS_F_M", ".csv"), 
                 check.names = TRUE) 
 
 # Cleaning & Transformation -----------------------------------------------
@@ -457,7 +457,7 @@ SU <- SU %>%
   mutate(REGIONS = str_replace(REGIONS, "US", "United States of America")) %>%
   mutate(REGIONS = str_replace(REGIONS, "UK", "United Kingdom")) %>% 
   mutate(SIGNUP_SOURCE = if_else(
-    REGIONS %in% c("D_APAC", "E_APAC", "W_Europe", "E_Europe", "LATAM", "Middle_East_Africa") & SIGNUP_SOURCE == "marketing", 
+    REGIONS %in% c("SEA", "Europe", "LATAM", "MENAP", "Sub-Saharan Africa") & SIGNUP_SOURCE == "marketing", 
     "organic", SIGNUP_SOURCE))
 
 #Format dates
@@ -524,27 +524,50 @@ SU_A <- anti_join(SU_A, Outliers,
 # Country & Regions List ------------------------------------------------------------
 
 country_SN_list <- c(
-  "US", "CA", "AU", "UK", "BR", "JP", "IN", "ID", "PH", "FR", "DE", "ES", "IT", "MX"
-  )
+  "TR", "US", "CA", "AU", "UK", "BR", "JP", "IN", "ID", "PH", "FR", "DE", "ES", "IT", "MX"
+)
 country_FN_list <- c(
-  "United States of America", "Canada", "Australia", "United Kingdom", 
+  "Turkey", "United States of America", "Canada", "Australia", "United Kingdom", 
   "Brazil", "Japan", "India", "Indonesia", "Philippines", 
   "France", "Germany", "Spain", "Italy", 
   "Mexico"
 )
 
 region_SN_list <- c(
-  "DA", "EA", "EE", "WE", "LA", "ME"
+  "SA", "EU", "LA", "ME", "SU"
 )
 region_FN_list <- c(
-  "D_APAC", "E_APAC", "E_Europe", "W_Europe", "LATAM", "Middle_East_Africa"
+  "SEA", "Europe", "LATAM", "MENAP", "Sub-Saharan Africa"
 )
 
-KR_SN_list <- c("KR")
-KR_FN_list <- c("South Korea")
+KR_SN_list <- c("KR", "TH", "PL", "NL")
+KR_FN_list <- c("South Korea", "Thailand", "Poland", "Netherlands")
 
-#country_SN <- "PH"
-#country_FN <- "Philippines"
+#country_SN_list <- c(
+#  "US", "CA", "AU", "UK", "BR", "JP", "IN", "ID", "PH", "FR", "DE", "ES", "IT", "MX"
+#  )
+#country_FN_list <- c(
+#  "United States of America", "Canada", "Australia", "United Kingdom", 
+#  "Brazil", "Japan", "India", "Indonesia", "Philippines", 
+#  "France", "Germany", "Spain", "Italy", 
+#  "Mexico"
+#)
+
+#region_SN_list <- c(
+#  "DA", "EA", "EE", "WE", "LA", "ME"
+#)
+#region_FN_list <- c(
+#  "D_APAC", "E_APAC", "E_Europe", "W_Europe", "LATAM", "Middle_East_Africa"
+#)
+
+#KR_SN_list <- c("KR")
+#KR_FN_list <- c("South Korea")
+
+#country_SN_list <- c("AU")
+#country_FN_list <- c("Australia")
+
+#country_SN <- "TR"
+#country_FN <- "Turkey"
 
 # User Journey Lists ------------------------------------------------------
 
@@ -939,7 +962,7 @@ run_countryloop_forecast <- function(
   
   #Retrieve coefficients for each model 
   for (dataset_name in M_names) {
-    
+
     #Retrieve model coefficients
     current_dataset <- get(dataset_name)
     current_co <- current_dataset$params$beta %*% as.matrix(current_dataset$train.component.cols)
@@ -954,7 +977,7 @@ run_countryloop_forecast <- function(
     current_co <- rbind(current_co, list('Intercept', current_dataset$params$m))
     assign(paste0(dataset_name, "_Co"), current_co)
   }
-  
+
 }
 
 run_regionloop_forecast <- function(
@@ -1074,7 +1097,6 @@ run_regionloop_forecast <- function(
       new_row$ds <- D_MS_AtoF
       df <- bind_rows(df, new_row)
     }
-    
     
     df <- df %>%
       arrange(ds) %>% 
@@ -1319,13 +1341,14 @@ All_F <- compile_forecasts(Model_names,F_list)
 #All_Co <- compile_Co(Co_list)
 
 #Combine all output tabs 
-#All_tabs <- list(
+All_tabs <- list(
   #'All_A'=All_A, 
-#                 'All_F'=All_F, 
-#                 'All_Co'=All_Co)
+                 'All_F'=All_F
+                 #, 'All_Co'=All_Co
+)
 
 #Output as CSV
-#write.xlsx(All_tabs, file = paste0(output_directory, as.character(Today_Text), "_", "Outputs_TSU_AllCountries", "_",".xlsx"))
+write.xlsx(All_tabs, file = paste0(output_directory, as.character(Today_Text), "_", "Outputs_TSU_AllCountries", "_",".xlsx"))
 
 # Extract for MAU Model ---------------------------------------------------
 
