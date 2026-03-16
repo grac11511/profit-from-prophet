@@ -73,8 +73,8 @@ prophet_forecast_country_dms <- function(name, actuals, regressors, holidays) {
   )
   
   #Add regressors 
-  #model <- add_regressor(model, 'perMar')
-  model <- add_regressor(model, 'DperMar')
+  #model <- add_regressor(model, 'perMar', standardize = FALSE)
+  model <- add_regressor(model, 'DperMar', standardize = FALSE)
   model <- add_regressor(model, 'Campaigns')
   #model <- add_regressor(model, 'ClassDays')
   
@@ -110,8 +110,8 @@ prophet_forecast_country_wms_m <- function(name, actuals, regressors, holidays) 
   )
   
   #Add regressors 
-  model <- add_regressor(model, 'perMar')
-  #model <- add_regressor(model, 'DperMar')
+  model <- add_regressor(model, 'perMar', standardize = FALSE)
+  #model <- add_regressor(model, 'DperMar', standardize = FALSE)
   model <- add_regressor(model, 'Campaigns')
   model <- add_regressor(model, 'ClassDays')
   
@@ -147,8 +147,8 @@ prophet_forecast_country_noms_m <- function(name, actuals, regressors, holidays)
   )
   
   #Add regressors 
-  #model <- add_regressor(model, 'perMar')
-  #model <- add_regressor(model, 'DperMar')
+  #model <- add_regressor(model, 'perMar', standardize = FALSE)
+  #model <- add_regressor(model, 'DperMar', standardize = FALSE)
   model <- add_regressor(model, 'Campaigns')
   model <- add_regressor(model, 'ClassDays')
   
@@ -168,7 +168,7 @@ prophet_forecast_country_noms_m <- function(name, actuals, regressors, holidays)
   
 }
 
-#Prophet Forecasting (B2C/B2B Organic (iOS, Android))
+#Prophet Forecasting (NonEdu Organic (iOS, Android))
 prophet_forecast_country_wms <- function(name, actuals, regressors, holidays) {
   
   #Create model with specified parameters
@@ -183,8 +183,8 @@ prophet_forecast_country_wms <- function(name, actuals, regressors, holidays) {
   )
   
   #Add regressors 
-  model <- add_regressor(model, 'perMar')
-  #model <- add_regressor(model, 'DperMar')
+  model <- add_regressor(model, 'perMar', standardize = FALSE)
+  #model <- add_regressor(model, 'DperMar', standardize = FALSE)
   model <- add_regressor(model, 'Campaigns')
   model <- add_regressor(model, 'ClassDays')
   
@@ -204,7 +204,7 @@ prophet_forecast_country_wms <- function(name, actuals, regressors, holidays) {
   
 }
 
-#Prophet Forecasting (B2C/B2B Organic (web))
+#Prophet Forecasting (NonEdu Organic (web))
 prophet_forecast_country_noms <- function(name, actuals, regressors, holidays) {
   
   #Create model with specified parameters
@@ -219,8 +219,8 @@ prophet_forecast_country_noms <- function(name, actuals, regressors, holidays) {
   )
   
   #Add regressors 
-  #model <- add_regressor(model, 'perMar')
-  #model <- add_regressor(model, 'DperMar')
+  #model <- add_regressor(model, 'perMar', standardize = FALSE)
+  #model <- add_regressor(model, 'DperMar', standardize = FALSE)
   model <- add_regressor(model, 'Campaigns')
   model <- add_regressor(model, 'ClassDays')
   
@@ -267,7 +267,7 @@ prophet_forecast_region_m <- function(name, actuals, regressors, holidays) {
   assign(paste0(name, "_F"), forecast, envir = .GlobalEnv)
 }
 
-#Prophet Forecasting (Regions & KR B2C/B2B)
+#Prophet Forecasting (Regions & KR NonEdu)
 prophet_forecast_region <- function(name, actuals, regressors, holidays) {
   
   #Create model with specified parameters
@@ -294,21 +294,51 @@ prophet_forecast_region <- function(name, actuals, regressors, holidays) {
 }
 
 #Compile Actuals
-compile_actuals <- function(A_list){
+#compile_actuals <- function(A_list){
+#  
+#  a_data <- list()
+#  
+#  for (actual in A_list) {
+#    actual_data <- get(actual)
+#    a_data[[actual]] <- actual_data$y
+#  }
+#  
+#  #Compile all actuals with date column
+#  All_A <- tibble::tibble(get(A_list[1])$ds,!!!a_data)
+#  
+#  #Rename date column
+#  All_A <- All_A %>% 
+#    rename(ds = `get(A_list[1])$ds`)
+#  
+#  return(All_A)
+#}
+
+compile_actuals <- function(A_list, start = D_ActualStart, end = D_LastDayActuals) {
   
-  a_data <- list()
+  # Create a full daily date sequence
+  full_dates <- tibble(ds = seq.Date(start, end, by = "day"))
   
-  for (actual in A_list) {
-    actual_data <- get(actual)
-    a_data[[actual]] <- actual_data$y
-  }
+  # Loop through all actuals and fill missing dates
+  a_data <- lapply(A_list, function(nm) {
+    actual_data <- get(nm)
+    
+    # Ensure ds is Date and fill missing dates within range
+    filled_data <- actual_data %>%
+      mutate(ds = as.Date(ds)) %>%
+      filter(ds >= start, ds <= end) %>%
+      right_join(full_dates, by = "ds") %>%
+      arrange(ds)
+    
+    # Rename y column to the object name
+    filled_data <- filled_data %>%
+      select(ds, y) %>%
+      rename(!!nm := y)
+    
+    return(filled_data)
+  })
   
-  #Compile all actuals with date column
-  All_A <- tibble::tibble(get(A_list[1])$ds,!!!a_data)
-  
-  #Rename date column
-  All_A <- All_A %>% 
-    rename(ds = `get(A_list[1])$ds`)
+  # Join all datasets by ds
+  All_A <- reduce(a_data, full_join, by = "ds") %>% arrange(ds)
   
   return(All_A)
 }
@@ -411,13 +441,14 @@ process_model_extracts <- function(prefix, user_type, signup_channel, platform, 
 D_ActualStart <- as.Date("2022-01-01")
 
 #Date Marketing Spend Switches from Actual to Forecast 
-D_MS_AtoF <- as.Date("2025-08-31")
+D_MS_AtoF <- as.Date("2026-02-28")
 
 #Forecast: Q2 2025 (May 2025 - Apr 2026)
-M_scenario <- "202509"
+M_scenario <- "202601"
 D_ForecastStart <- D_MS_AtoF + 1
 D_ForecastEnd <- D_ForecastStart + 365 - 1
 paste0("Actuals to Forecast Date: ", D_MS_AtoF, " Forecast Start: ", D_ForecastStart, " Forecast End: ", D_ForecastEnd)
+D_LastDayActuals <- D_MS_AtoF
 
 #Today 
 Today <- now()
@@ -430,7 +461,7 @@ input_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting 
 output_directory <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/03. Prophet Outputs/"
 
 #Import Static Data sets
-Holidays <- fread(file=paste0(input_directory, "2025.09.02 collated_holidays", ".csv"), 
+Holidays <- fread(file=paste0(input_directory, "2026.01.05 collated_holidays", ".csv"), 
                   check.names = TRUE)
 Campaigns <- fread(file=paste0(input_directory, "2025.06.04 Campaigns", ".csv"), 
                    check.names = TRUE)
@@ -440,13 +471,13 @@ Outliers <- fread(file=paste0(input_directory, "2025.06.04 Outliers", ".csv"),
                   check.names = TRUE)
 
 #Import Dynamic Data sets
-SU <- fread(file=paste0(input_directory, "2025.09.02 Signups", ".csv"), 
+SU <- fread(file=paste0(input_directory, "2026.03.02 Signups", ".csv"), 
             check.names = TRUE)
-MS_AF_W <- fread(file=paste0(input_directory, "2025.09.02 Looker_MS_AF_W", ".csv"), 
+MS_AF_W <- fread(file=paste0(input_directory, "2026.03.02 Looker_MS_AF_W", ".csv"), 
                  check.names = TRUE)
-MS_A_D <- fread(file=paste0(input_directory, "2025.09.02 Looker_MS_A_D", ".csv"), 
+MS_A_D <- fread(file=paste0(input_directory, "2026.03.02 Looker_MS_A_D", ".csv"), 
                  check.names = TRUE)
-MS_F_M <- fread(file=paste0(input_directory, "2025.09.02 MS_F_M", ".csv"), 
+MS_F_M <- fread(file=paste0(input_directory, "2026.03.02 MS_F_M", ".csv"), 
                 check.names = TRUE) 
 
 # Cleaning & Transformation -----------------------------------------------
@@ -462,6 +493,17 @@ SU <- SU %>%
 
 #Format dates
 SU$DATE <- as.Date(SU$DATE, format = "%m/%d/%Y")
+
+#Aggregate B2C & B2B into NonEdu
+#SU <- SU %>%
+#  mutate(CUSTOMER_TYPE = ifelse(CUSTOMER_TYPE %in% c("B2B", "B2C"), "NonEdu", CUSTOMER_TYPE)) %>%
+#  group_by(DATE, PLATFORM, SIGNUP_SOURCE, CUSTOMER_TYPE, REGIONS, EOMONTH) %>%
+#  summarise(TOTAL_SIGNUPS = sum(TOTAL_SIGNUPS, na.rm = TRUE), .groups = "drop") 
+
+#Checks
+#nrow(tst)/nrow(SU)
+#sum(SU$TOTAL_SIGNUPS, na.rm = TRUE)
+#sum(tst$TOTAL_SIGNUPS, na.rm = TRUE)
 
 #Filter for relevant actuals
 SU_A <- SU %>% filter(DATE >= D_ActualStart)
@@ -540,34 +582,15 @@ region_FN_list <- c(
   "SEA", "Europe", "LATAM", "MENAP", "Sub-Saharan Africa"
 )
 
-KR_SN_list <- c("KR", "TH", "PL", "NL")
-KR_FN_list <- c("South Korea", "Thailand", "Poland", "Netherlands")
-
-#country_SN_list <- c(
-#  "US", "CA", "AU", "UK", "BR", "JP", "IN", "ID", "PH", "FR", "DE", "ES", "IT", "MX"
-#  )
-#country_FN_list <- c(
-#  "United States of America", "Canada", "Australia", "United Kingdom", 
-#  "Brazil", "Japan", "India", "Indonesia", "Philippines", 
-#  "France", "Germany", "Spain", "Italy", 
-#  "Mexico"
-#)
-
-#region_SN_list <- c(
-#  "DA", "EA", "EE", "WE", "LA", "ME"
-#)
-#region_FN_list <- c(
-#  "D_APAC", "E_APAC", "E_Europe", "W_Europe", "LATAM", "Middle_East_Africa"
-#)
-
-#KR_SN_list <- c("KR")
-#KR_FN_list <- c("South Korea")
+KR_SN_list <- c(
+  "VN", "KR", "TH", "PL", "NL"
+  )
+KR_FN_list <- c(
+  "Vietnam", "South Korea", "Thailand", "Poland", "Netherlands"
+  )
 
 #country_SN_list <- c("AU")
 #country_FN_list <- c("Australia")
-
-#country_SN <- "TR"
-#country_FN <- "Turkey"
 
 # User Journey Lists ------------------------------------------------------
 
@@ -577,19 +600,16 @@ Model_list <- list(
   M12 = "_EDU_ORG_IOS",
   M13 = "_EDU_ORG_AND",
   M14 = "_EDU_MAR_WEB",
-  M17 = "_B2C_ORG_WEB",
-  M18 = "_B2C_ORG_IOS",
-  M19 = "_B2C_ORG_AND",
-  M20 = "_B2C_MAR_WEB",
-  M23 = "_B2B_ORG_WEB",
-  M26 = "_B2B_MAR_WEB"
+  M17 = "_NON_ORG_WEB",
+  M18 = "_NON_ORG_IOS",
+  M19 = "_NON_ORG_AND",
+  M20 = "_NON_MAR_WEB"
 )
 
 #Excluded Models
 Excl_Model_list <- list(
   M14 = "_EDU_MAR_WEB",
-  M20 = "_B2C_MAR_WEB",
-  M26 = "_B2B_MAR_WEB"
+  M20 = "_NON_MAR_WEB"
 )
 
 #Full Country and Region List
@@ -644,8 +664,7 @@ Co_list <- paste0(Model_names, "_Co")
 #Extract names 
 EXT_suffixes <- c(
   "EDU_ORG_WEB", "EDU_ORG_IOS", "EDU_ORG_AND", "EDU_MAR_WEB",
-  "B2C_ORG_WEB", "B2C_ORG_IOS", "B2C_ORG_AND", "B2C_MAR_WEB",
-  "B2B_ORG_WEB", "B2B_MAR_WEB"
+  "NON_ORG_WEB", "NON_ORG_IOS", "NON_ORG_AND", "NON_MAR_WEB"
 )
 
 # Forecasting Loop Functions ----------------------------------------------
@@ -715,7 +734,7 @@ run_countryloop_forecast <- function(
     rename(ds = DATE, y = TOTAL_SIGNUPS)
   
   #Assign the base country-level dataset (e.g., US_SU_A)
-  assign(paste0(country_SN, "_SU_A"), SU_Country)
+  assign(paste0(country_SN, "_SU_A"), SU_Country, envir = .GlobalEnv)
   
   #Define filtering rules for each forecast split
   filters <- list(
@@ -728,21 +747,18 @@ run_countryloop_forecast <- function(
     EDU_ORG_IOS      = quote(CUSTOMER_TYPE == "Edu" & SIGNUP_SOURCE == "organic" & PLATFORM == "iOS"),
     EDU_ORG_AND      = quote(CUSTOMER_TYPE == "Edu" & SIGNUP_SOURCE == "organic" & PLATFORM == "Android"),
     EDU_MAR_WEB      = quote(CUSTOMER_TYPE == "Edu" & SIGNUP_SOURCE == "marketing" & PLATFORM == "web"),
-    B2C              = quote(CUSTOMER_TYPE == "B2C"),
-    B2C_ORG_WEB      = quote(CUSTOMER_TYPE == "B2C" & SIGNUP_SOURCE == "organic" & PLATFORM == "web"),
-    B2C_ORG_IOS      = quote(CUSTOMER_TYPE == "B2C" & SIGNUP_SOURCE == "organic" & PLATFORM == "iOS"),
-    B2C_ORG_AND      = quote(CUSTOMER_TYPE == "B2C" & SIGNUP_SOURCE == "organic" & PLATFORM == "Android"),
-    B2C_MAR_WEB      = quote(CUSTOMER_TYPE == "B2C" & SIGNUP_SOURCE == "marketing" & PLATFORM == "web"),
-    B2B              = quote(CUSTOMER_TYPE == "B2B"),
-    B2B_ORG_WEB      = quote(CUSTOMER_TYPE == "B2B" & SIGNUP_SOURCE == "organic" & PLATFORM == "web"),
-    B2B_MAR_WEB      = quote(CUSTOMER_TYPE == "B2B" & SIGNUP_SOURCE == "marketing" & PLATFORM == "web")
+    NON              = quote(CUSTOMER_TYPE == "NonEdu"),
+    NON_ORG_WEB      = quote(CUSTOMER_TYPE == "NonEdu" & SIGNUP_SOURCE == "organic" & PLATFORM == "web"),
+    NON_ORG_IOS      = quote(CUSTOMER_TYPE == "NonEdu" & SIGNUP_SOURCE == "organic" & PLATFORM == "iOS"),
+    NON_ORG_AND      = quote(CUSTOMER_TYPE == "NonEdu" & SIGNUP_SOURCE == "organic" & PLATFORM == "Android"),
+    NON_MAR_WEB      = quote(CUSTOMER_TYPE == "NonEdu" & SIGNUP_SOURCE == "marketing" & PLATFORM == "web")
   )
   
   # Loop through each filter rule and assign to dynamic variable
   for (suffix in names(filters)) {
     var_name <- paste0(country_SN, "_", suffix, "_A")
     filtered_df <- SU_Country %>% filter(eval(filters[[suffix]]))
-    assign(var_name, filtered_df)
+    assign(var_name, filtered_df, envir = .GlobalEnv)
   }
   
   #Format and structure for each split of actuals 
@@ -772,7 +788,7 @@ run_countryloop_forecast <- function(
     df <- df %>%
       arrange(ds) %>% 
       complete(ds = full_seq(ds, 1))
-    assign(A_name, df)  
+    assign(A_name, df, envir = .GlobalEnv)  
   }
   
   #Filter for actuals period for each split of actuals
@@ -781,7 +797,7 @@ run_countryloop_forecast <- function(
     filtered_df <- df_A %>% 
       filter(ds <= D_ForecastStart - 1) %>% 
       complete(ds = full_seq(ds, 1))
-    assign(B_name, filtered_df) 
+    assign(B_name, filtered_df, envir = .GlobalEnv) 
   }
   
   # Cleaning & Transformation: Regressors -----------------------------------
@@ -802,7 +818,7 @@ run_countryloop_forecast <- function(
     filter(country == !!country_SN)
   
   #Assign to a dynamic object
-  assign(holidays_tblname, Holidays_filtered)
+  assign(holidays_tblname, Holidays_filtered, envir = .GlobalEnv)
   
   ############ Timeframe
   
@@ -856,19 +872,22 @@ run_countryloop_forecast <- function(
     mutate(perMar = perMar/7) %>% 
     filter(ds <= D_MS_AtoF)
   
-  #Turn monthly data into daily data by dividing by number of days in a month
-  CC_MS_F_M <- MS_F_M %>%
+  # 1) Compute per-day value per month
+  monthly_daily <- MS_F_M %>%
     filter(COUNTRY_NAME == country_FN) %>%
-    complete(MONTH = full_seq(MONTH,1)) %>% 
-    fill(perMar) %>%
-    mutate(days_in_month = days_in_month(MONTH)) %>% 
-    mutate(perMar = perMar/days_in_month) %>% 
-    rename(ds = MONTH) %>% 
-    select(ds,perMar)
+    mutate(MONTH = as.Date(MONTH)) %>%        # ensure Date
+    transmute(
+      month  = floor_date(MONTH, "month"),
+      perMar = perMar / days_in_month(MONTH)  # monthly -> daily value
+    )
   
-  #Filter for the for the date the marketing spend data switches into budget
-  CC_MS_F_M <- CC_MS_F_M %>% 
-    filter(ds > D_MS_AtoF)
+  # 2) Expand to every day in the regressor date range,
+  #    then attach that month's per-day value to each day
+  CC_MS_F_M <- tsu_df %>%                     # tsu_df has all ds from actual+forecast period
+    filter(ds > D_MS_AtoF) %>%                # only forecast/budget period
+    mutate(month = floor_date(ds, "month")) %>%
+    left_join(monthly_daily, by = "month") %>%
+    select(ds, perMar)
   
   #Bind actuals and forecast marketing spend
   CC_MS <- rbind(CC_MS_AF_W,CC_MS_F_M)
@@ -975,7 +994,7 @@ run_countryloop_forecast <- function(
     
     #Collate into table
     current_co <- rbind(current_co, list('Intercept', current_dataset$params$m))
-    assign(paste0(dataset_name, "_Co"), current_co)
+    assign(paste0(dataset_name, "_Co"), current_co, envir = .GlobalEnv)
   }
 
 }
@@ -1058,14 +1077,11 @@ run_regionloop_forecast <- function(
     EDU_ORG_IOS      = quote(CUSTOMER_TYPE == "Edu" & SIGNUP_SOURCE == "organic" & PLATFORM == "iOS"),
     EDU_ORG_AND      = quote(CUSTOMER_TYPE == "Edu" & SIGNUP_SOURCE == "organic" & PLATFORM == "Android"),
     EDU_MAR_WEB      = quote(CUSTOMER_TYPE == "Edu" & SIGNUP_SOURCE == "marketing" & PLATFORM == "web"),
-    B2C              = quote(CUSTOMER_TYPE == "B2C"),
-    B2C_ORG_WEB      = quote(CUSTOMER_TYPE == "B2C" & SIGNUP_SOURCE == "organic" & PLATFORM == "web"),
-    B2C_ORG_IOS      = quote(CUSTOMER_TYPE == "B2C" & SIGNUP_SOURCE == "organic" & PLATFORM == "iOS"),
-    B2C_ORG_AND      = quote(CUSTOMER_TYPE == "B2C" & SIGNUP_SOURCE == "organic" & PLATFORM == "Android"),
-    B2C_MAR_WEB      = quote(CUSTOMER_TYPE == "B2C" & SIGNUP_SOURCE == "marketing" & PLATFORM == "web"),
-    B2B              = quote(CUSTOMER_TYPE == "B2B"),
-    B2B_ORG_WEB      = quote(CUSTOMER_TYPE == "B2B" & SIGNUP_SOURCE == "organic" & PLATFORM == "web"),
-    B2B_MAR_WEB      = quote(CUSTOMER_TYPE == "B2B" & SIGNUP_SOURCE == "marketing" & PLATFORM == "web")
+    NON              = quote(CUSTOMER_TYPE == "NonEdu"),
+    NON_ORG_WEB      = quote(CUSTOMER_TYPE == "NonEdu" & SIGNUP_SOURCE == "organic" & PLATFORM == "web"),
+    NON_ORG_IOS      = quote(CUSTOMER_TYPE == "NonEdu" & SIGNUP_SOURCE == "organic" & PLATFORM == "iOS"),
+    NON_ORG_AND      = quote(CUSTOMER_TYPE == "NonEdu" & SIGNUP_SOURCE == "organic" & PLATFORM == "Android"),
+    NON_MAR_WEB      = quote(CUSTOMER_TYPE == "NonEdu" & SIGNUP_SOURCE == "marketing" & PLATFORM == "web")
   )
   
   # Loop through each filter rule and assign to dynamic variable
@@ -1218,8 +1234,8 @@ for (i in seq_along(country_SN_list)) {
     category = "Marketing",
     country_SN = country_SN_list[i],
     country_FN = country_FN_list[i],
-    split_suffixes = c("EDU_MAR_WEB", "B2C_MAR_WEB", "B2B_MAR_WEB"),
-    model_ids = c("M14", "M20", "M26"),
+    split_suffixes = c("EDU_MAR_WEB", "NON_MAR_WEB"),
+    model_ids = c("M14", "M20"),
     forecast_func = prophet_forecast_country_dms
   )
 }
@@ -1248,26 +1264,26 @@ for (i in seq_along(country_SN_list)) {
   )
 }
 
-#B2C/B2B Organic (iOS, Android) Country Loop
+#NonEdu Organic (iOS, Android) Country Loop
 for (i in seq_along(country_SN_list)) {
   run_countryloop_forecast(
-    category = "B2C/B2B Organic: iOS, Android",
+    category = "NonEdu Organic: iOS, Android",
     country_SN = country_SN_list[i],
     country_FN = country_FN_list[i],
-    split_suffixes = c("B2C_ORG_IOS", "B2C_ORG_AND"),
+    split_suffixes = c("NON_ORG_IOS", "NON_ORG_AND"),
     model_ids = c("M18", "M19"),
     forecast_func = prophet_forecast_country_wms
   )
 }
 
-#B2C/B2B Organic (web) Country Loop
+#NonEdu Organic (web) Country Loop
 for (i in seq_along(country_SN_list)) {
   run_countryloop_forecast(
-    category = "B2C/B2B Organic: web",
+    category = "NonEdu Organic: web",
     country_SN = country_SN_list[i],
     country_FN = country_FN_list[i],
-    split_suffixes = c("B2C_ORG_WEB","B2B_ORG_WEB"),
-    model_ids = c("M17", "M23"),
+    split_suffixes = c("NON_ORG_WEB"),
+    model_ids = c("M17"),
     forecast_func = prophet_forecast_country_noms
   )
 }
@@ -1290,14 +1306,14 @@ for (i in seq_along(region_SN_list)) {
   )
 }
 
-#Region (B2C/B2B) Loop
+#Region (NonEdu) Loop
 for (i in seq_along(region_SN_list)) {
   run_regionloop_forecast(
-    category = "Regions B2C/B2B",
+    category = "Regions NonEdu",
     country_SN = region_SN_list[i],
     country_FN = region_FN_list[i],
-    split_suffixes = c("B2C_ORG_WEB", "B2C_ORG_IOS", "B2C_ORG_AND", "B2B_ORG_WEB"),
-    model_ids = c("M17", "M18", "M19", "M23"),
+    split_suffixes = c("NON_ORG_WEB", "NON_ORG_IOS", "NON_ORG_AND"),
+    model_ids = c("M17", "M18", "M19"),
     forecast_func = prophet_forecast_region
   )
 }
@@ -1314,14 +1330,14 @@ for (i in seq_along(KR_SN_list)) {
   )
 }
 
-#KR (B2C/B2B) Loop
+#KR (NonEdu) Loop
 for (i in seq_along(KR_SN_list)) {
   run_regionloop_forecast(
-    category = "Korea B2C/B2B",
+    category = "Korea NonEdu",
     country_SN = KR_SN_list[i],
     country_FN = KR_FN_list[i],
-    split_suffixes = c("EDU_MAR_WEB", "B2C_ORG_WEB", "B2C_ORG_IOS", "B2C_ORG_AND", "B2C_MAR_WEB", "B2B_ORG_WEB", "B2B_MAR_WEB"),
-    model_ids = c("M14", "M17", "M18", "M19", "M20", "M23", "M26"),
+    split_suffixes = c("EDU_MAR_WEB", "NON_ORG_WEB", "NON_ORG_IOS", "NON_ORG_AND", "NON_MAR_WEB"),
+    model_ids = c("M14", "M17", "M18", "M19", "M20"),
     forecast_func = prophet_forecast_region
   )
 }
@@ -1342,9 +1358,9 @@ All_F <- compile_forecasts(Model_names,F_list)
 
 #Combine all output tabs 
 All_tabs <- list(
-  #'All_A'=All_A, 
-                 'All_F'=All_F
-                 #, 'All_Co'=All_Co
+#  'All_A'=All_A, 
+  'All_F'=All_F
+#  ,'All_Co'=All_Co
 )
 
 #Output as CSV
@@ -1360,12 +1376,10 @@ process_model_extracts("M11", user_type = "Edu", signup_channel = "organic", pla
 process_model_extracts("M12", user_type = "Edu", signup_channel = "organic", platform = "iOS")
 process_model_extracts("M13", user_type = "Edu", signup_channel = "organic", platform = "Android")
 process_model_extracts("M14", user_type = "Edu", signup_channel = "marketing", platform = "web")
-process_model_extracts("M17", user_type = "B2C", signup_channel = "organic", platform = "web")
-process_model_extracts("M18", user_type = "B2C", signup_channel = "organic", platform = "iOS")
-process_model_extracts("M19", user_type = "B2C", signup_channel = "organic", platform = "Android")
-process_model_extracts("M20", user_type = "B2C", signup_channel = "marketing", platform = "web")
-process_model_extracts("M23", user_type = "B2B", signup_channel = "organic", platform = "web")
-process_model_extracts("M26", user_type = "B2B", signup_channel = "marketing", platform = "web")
+process_model_extracts("M17", user_type = "NonEdu", signup_channel = "organic", platform = "web")
+process_model_extracts("M18", user_type = "NonEdu", signup_channel = "organic", platform = "iOS")
+process_model_extracts("M19", user_type = "NonEdu", signup_channel = "organic", platform = "Android")
+process_model_extracts("M20", user_type = "NonEdu", signup_channel = "marketing", platform = "web")
 
 #Generate full extract list
 full_combos <- expand.grid(
@@ -1375,7 +1389,7 @@ full_combos <- expand.grid(
 )
 
 #Excluded extracts
-excl_ext_suffixes <- c("EDU_MAR_WEB", "B2C_MAR_WEB", "B2B_MAR_WEB")
+excl_ext_suffixes <- c("EDU_MAR_WEB", "NON_MAR_WEB")
 
 #Generate excluded extracts
 excl_combos <- expand.grid(
@@ -1427,24 +1441,29 @@ Extract_F_D <- Extract_F_D %>%
       "\\bUnited States of America\\b" = "US",
       "\\bCA\\b" = "Canada", 
       "\\bAU\\b" = "Australia", 
-      "\\bUnited Kingdom\\b" = "UK", 
-      "\\bBR\\b" = "Brazil", 
       "\\bJP\\b" = "Japan", 
       "\\bKR\\b" = "South Korea",       
       "\\bIN\\b" = "India", 
       "\\bID\\b" = "Indonesia", 
       "\\bPH\\b" = "Philippines", 
+      "\\bVN\\b" = "Vietnam",
+      "\\bTH\\b" = "Thailand",
+      "\\bSA\\b" = "SEA",
+      "\\bBR\\b" = "Brazil", 
+      "\\bMX\\b" = "Mexico",
+      "\\bLA\\b" = "LATAM",
+      "\\bUnited Kingdom\\b" = "UK", 
       "\\bFR\\b" = "France", 
-      "\\bDE\\b" = "Germany", 
       "\\bES\\b" = "Spain", 
       "\\bIT\\b" = "Italy", 
-      "\\bMX\\b" = "Mexico",
-      "\\bDA\\b" = "D_APAC",
-      "\\bEA\\b" = "E_APAC",
-      "\\bEE\\b" = "E_Europe",
-      "\\bWE\\b" = "W_Europe",
-      "\\bLA\\b" = "LATAM",
-      "\\bME\\b" = "Middle_East_Africa"
+      "\\bME\\b" = "MENAP",
+      "\\bMiddle_East_Africa\\b" = "MENAP",
+      "\\bEU\\b" = "Europe",
+      "\\bSU\\b" = "Sub-Saharan Africa",
+      "\\bDE\\b" = "Germany", 
+      "\\bTR\\b" = "Turkey",
+      "\\bPL\\b" = "Poland",
+      "\\bNL\\b" = "Netherlands"
     )
   ))
 

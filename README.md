@@ -2,9 +2,22 @@
 
 ## 📌 Objective
 
-To forecast daily signups across multiple countries, regions, and user journey segments using the <a href="https://cran.r-project.org/web/packages/prophet/prophet.pdf" target="_blank">Prophet</a> package. The system dynamically integrates marketing spend, campaigns, holidays, and other regressors. It also compiles coefficients and generates an extract of all signups forecasts that inputs into the MAU forecast model.
+To forecast daily signups and MAU across multiple countries, regions, and user journey segments using the <a href="https://cran.r-project.org/web/packages/prophet/prophet.pdf" target="_blank">Prophet</a> package. The system dynamically integrates marketing spend, campaigns, holidays, and other regressors. It also compiles coefficients and generates an extract of all signups forecasts that inputs into the MAU forecast model.
 
----
+## 📁 Repository Structure
+
+### Signups
+| File | Description |
+|---------|---------|
+| `signups_forecasting_country` | The official signups forecast that inputs downstream into the Topline MAU Model |
+| `signups_ref_usonly` | Parameter tuning on the US models |
+
+### MAU
+| File | Description |
+|---------|---------|
+| `mau_forecasting_country` | The official MAU forecast for smaller countries: `Nordics-Sweden`, `Czech Republic`, `GCC`, `China`, `Argentina`, `South Africa`
+| `mau_ref_global` | 3 year forecast for total global MAU |
+| `mau_ref_regions` | 3 year forecast for MAU split by regions: `NAMER`, `Europe`, `GPTN`, `MENAP`, `SSA`, `LATAM`, `CJKI`, `SEA` |
 
 ## 📦 Dependencies
 
@@ -13,8 +26,6 @@ To forecast daily signups across multiple countries, regions, and user journey s
 - **Modeling**: `prophet`, `mgsub`
 - **Exporting**: `openxlsx`
 - **Utilities**: `DatabaseConnector` (used for date utilities like `eoMonth`)
-
----
 
 ## 📁 Inputs & Configuration
 
@@ -32,8 +43,6 @@ Loaded from a defined input directory:
 - `D_ForecastStart` / `D_ForecastEnd`: Forecasting window
 - `M_scenario`: Label for scenario tagging (e.g., "Q2Forecast")
 
----
-
 ## 🧠 Core Functions
 
 | Function | Purpose |
@@ -44,27 +53,32 @@ Loaded from a defined input directory:
 | `compile_actuals`, `compile_forecasts`, `compile_Co`, `compile_APE` | Aggregates model outputs |
 | `process_model_extracts` | Structures forecasts for MAU extract by user type and platform |
 
----
-
-## 🌍 Regions 
+## 🌍 Countries & Regions 
 
 ### Countries 
-- `US`, `Canada`, `Australia`, `UK`, `Brazil`, `Japan`, `South Korea`, `India`, `Indonesia`, `Phillipines`, `France`, `Germany`, `Spain`, `Italy`, `Mexico`
+| Region | Countries |
+|---------|---------|
+| NAMER | `US`, `Canada`, `Australia` |
+| Europe | `UK`, `France`, `Spain`, `Italy` |
+| LATAM | `Brazil`, `Mexico` |
+| CJKI | `Japan`, `South Korea`, `India` |
+| SEA | `Indonesia`, `Phillipines`, `Thailand`, `Vietnam` |
+| GPTN | `Germany`, `Poland`, `Turkey`, `Netherlands` |
+
 - Forecast at the country level with regressors.
 - Models are trained and forecasts are generated for various user journey segments.
 
 ### Regions 
-- `Emerging APAC`, `Developed APAC`, `East Europe`, `West Europe`, `LATAM`, `Middle East and Africa`
+`Europe`, `LATAM`, `SEA`, `MENAP`, `Sub-Saharan Africa`
+
 - Forecast at the region level without regressors due to data limitations.
 - Reuses much of the country-level logic.
-
----
 
 ## 🏗️ Dimensions 
 
 ### User Journey Models
 Each country/region is split into segments:
-- **User Types**: `Edu`, `B2C`, `B2B`
+- **User Types**: `Edu`, `NonEdu` (B2C and B2B)
 - **Signup Sources**: `organic` (direct and SEO), `marketing` (paid)
 - **Platforms**: `web`, `iOS`, `Android`
 
@@ -72,8 +86,6 @@ Each country/region is split into segments:
 - `*_A`: Actuals
 - `*_F`: Forecasts
 - `*_Co`: Coefficients
-
----
 
 ## 🔢 Forecasting Workflow
 
@@ -104,7 +116,7 @@ Each country/region is split into segments:
 2. **Education Organic Models**:
    - Multiplicative seasonality mode
   
-3. **B2C/B2B Organic Models**:
+3. **NonEdu Organic Models**:
    - Additive seasonality mode
 
 4. **iOS & Android Models**:
@@ -112,7 +124,6 @@ Each country/region is split into segments:
   
 5. **web Models**:
    - Does not use marketing spend as regressor
----
 
 ## 📤 Output Generation
 
@@ -128,10 +139,9 @@ Each country/region is split into segments:
    - Platform
    - Scenario
 
----
-
 ## ⚠️ Known Considerations
 
 - Regressors only apply to country models, not regions.
 - `prophet_plot_components()` currently commented out—could be included for further analysis.
 - Run `Package Installation` line by line prior to all other sections. 
+

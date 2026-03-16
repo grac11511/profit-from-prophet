@@ -1,0 +1,225 @@
+#Installing Packages
+
+#Tables
+install.packages('data.table') #Enhanced version of data frame
+install.packages('tibble') #Simple data frames
+
+#Cleaning & Transformation
+install.packages('lubridate') #Date and time transformations
+install.packages('magrittr') #%>% 
+install.packages('stringr') #String mutations
+#install.packages('plyr') 
+install.packages('dplyr') 
+install.packages('tidyr') 
+install.packages('tidyverse') 
+install.packages('mgsub') #Multiple Text Substitution 
+install.packages("DatabaseConnector") #eoMonth function
+
+#Modelling
+install.packages('prophet')
+
+#Charting
+install.packages('ggplot2')
+
+#Exporting
+install.packages('openxlsx')
+
+#Running Packages
+#library(plyr)
+library(data.table)
+library(lubridate)
+library(magrittr)
+library(dplyr)
+library(stringr)
+library(tibble)
+library(tidyr)
+library(tidyverse)
+library(ggplot2)
+library(prophet)
+library(mgsub)
+library(DatabaseConnector) #why is this not loading
+library(openxlsx)
+
+# Dates
+D_ActStart <- as.Date("2022-01-01")
+D_ActEnd <- as.Date("2026-01-31")
+D_FStart <- D_ActEnd+1
+D_FEnd <- D_FStart+364*3
+Scenario <- "202601"
+D_Today <- format(Sys.Date(),"%Y.%m.%d")
+
+# Directories
+in_dir <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/02. Prophet Inputs/"
+out_dir <- "/Users/grac/Library/CloudStorage/Box-Box/Internal Reporting (CPL)/FP&A/Modelling/03. MAU/07. Prophet Model/03. Prophet Outputs/"
+
+
+# Input Files
+DF  <- as_tibble(fread(file.path(in_dir, "2026.02.20 MAU.csv")))
+DF2 <- as_tibble(fread(file.path(in_dir, "2026.02.25 MAU by Regions.csv")))
+MS_A_D <- as_tibble(fread(paste0(in_dir,"2026.02.16 Looker_MS_A_D.csv")))
+MS_F_M <- as_tibble(fread(paste0(in_dir,"2026.02.16 MS_F_M.csv")))
+hol_raw <- as_tibble(fread(paste0(in_dir,"2026.01.05 collated_holidays.csv")))
+
+# ----------------------------
+# Regions to run
+# ----------------------------
+regions_to_run <- c("NAMER", "Europe", "GPTN", "MENAP", "SSA", "LATAM", "CJKI", "SEA")
+
+regions_present <- sort(unique(DF2$Region))
+missing_regions <- setdiff(regions_to_run, regions_present)
+if (length(missing_regions) > 0) {
+  message("These regions were not found in DF2 and will be skipped: ",
+          paste(missing_regions, collapse = ", "))
+}
+regions_to_run <- intersect(regions_to_run, regions_present)
+
+# ----------------------------
+# Shared regressor build (same logic as you had)
+# ----------------------------
+DS_MS_A_D <- MS_A_D %>%
+  mutate(ds = as.Date(ds, "%m/%d/%Y")) %>%
+  filter(ds <= D_ActEnd) %>%
+  group_by(ds) %>%
+  summarise(DperMar = sum(perMar, na.rm = TRUE), .groups = "drop")
+
+DS_MS_F_M <- MS_F_M %>%
+  mutate(MONTH = as.Date(MONTH, "%m/%d/%Y")) %>%
+  filter(BUDGET == "Performance Marketing") %>%
+  mutate(m = floor_date(MONTH, "month")) %>%
+  group_by(m) %>%
+  summarise(pm = sum(TARGET, na.rm = TRUE), .groups = "drop")
+
+T_Full  <- tibble(ds = seq.Date(D_ActStart, D_FEnd, by = "day"))
+T_FStart <- tibble(ds = seq.Date(D_FStart, D_FEnd, by = "day")) %>%
+  mutate(m = floor_date(ds, "month"))
+
+R_tbl <- T_Full %>%
+  left_join(DS_MS_A_D, by = "ds") %>%
+  left_join(
+    T_FStart %>%
+      left_join(DS_MS_F_M, by = "m") %>%
+      transmute(ds, DperMar = replace_na(pm, 0) / days_in_month(m)),
+    by = "ds"
+  ) %>%
+  transmute(ds, DperMar = coalesce(DperMar.x, DperMar.y, 0))
+
+# ----------------------------
+# Holidays (same as yours)
+# ----------------------------
+holidays_df <- hol_raw %>%
+  filter(country == "US") %>%
+  transmute(
+    holiday = holiday,
+    ds      = as.Date(ds, "%m/%d/%Y")
+  )
+
+# ----------------------------
+# Function: run 1 region, return outputs
+# (plots will "pop up" because we print them)
+# ----------------------------
+
+region_name <- "NAMER"
+
+run_region_prophet <- function(region_name) {
+  
+  start_time <- Sys.time()
+  cat("\n▶ Starting:", region_name, "at", format(start_time, "%H:%M:%S"), "\n")
+  
+  # Actuals for region
+  A_region <- DF2 %>%
+    mutate(ds = as.Date(ds, "%m/%d/%Y")) %>%
+    filter(Region == region_name, ds >= D_ActStart, ds <= D_ActEnd) %>%
+    group_by(ds) %>%
+    summarise(y = sum(MAU, na.rm = TRUE), .groups = "drop") %>%
+    complete(ds = seq.Date(D_ActStart, D_ActEnd, by = "day")) %>%
+    mutate(y = replace_na(y, 0))
+  
+  # Training Data
+  train <- R_tbl %>%
+    left_join(A_region, by = "ds") %>%
+    filter(ds <= D_ActEnd) %>%
+    select(ds, y, DperMar) %>%
+    mutate(
+      ds      = as.Date(ds),
+      y       = as.numeric(y),
+      DperMar = readr::parse_number(as.character(DperMar))
+    ) %>%
+    filter(!is.na(ds)) %>%
+    arrange(ds) %>%
+    as.data.frame()
+  
+  # Prophet model
+  m <- prophet::prophet(
+    holidays = holidays_df,
+    changepoint.range = .75,
+    daily.seasonality = FALSE,
+    weekly.seasonality = 4,
+    yearly.seasonality = 10,
+    changepoint.prior.scale = .05,
+    seasonality.prior.scale = 10
+  )
+  m <- prophet::add_regressor(m, "DperMar", standardize = FALSE)
+  m <- prophet::fit.prophet(m, train)
+  
+  # Forecast
+  fc <- predict(m, R_tbl)
+  
+  # Daily output (tag region)
+  F_daily <- fc %>%
+    select(ds, yhat) %>%
+    transmute(Region = region_name, ds, MAU = yhat)
+  
+  # Monthly output (tag region)
+  F_monthly <- F_daily %>%
+    mutate(Date = ceiling_date(ds, "month") - days(1)) %>%
+    group_by(Region, Date) %>%
+    summarise(Total = sum(MAU), .groups = "drop")
+  
+  # Forecast (ggplot)
+  p <- plot(m, fc) +
+    ggtitle(paste0("Forecast for Total MAU: ", region_name)) +
+    xlab("Year") +
+    ylab("Total")
+  
+  print(p)
+  dev.flush()
+  Sys.sleep(0.05)
+  
+  #prophet::prophet_plot_components(m, fc)
+  
+  end_time <- Sys.time()
+  cat("✔ Finished:", region_name,
+      "| Time:", round(difftime(end_time, start_time, units = "mins"), 2),
+      "mins\n")
+  
+  list(daily = F_daily, monthly = F_monthly)
+}
+
+# ----------------------------
+# Run all regions + bind outputs
+# ----------------------------
+res_list <- lapply(regions_to_run, run_region_prophet)
+
+Daily_AllRegions <- bind_rows(lapply(res_list, `[[`, "daily")) %>%
+  arrange(Region, ds)
+
+Monthly_AllRegions <- bind_rows(lapply(res_list, `[[`, "monthly")) %>%
+  arrange(Region, Date)
+
+# ----------------------------
+# One Excel output
+# ----------------------------
+out_xlsx <- file.path(out_dir, paste0(D_Today, "_Outputs_AllRegions_Prophet_DperMar.xlsx"))
+
+write.xlsx(
+  list(
+    Daily_AllRegions   = Daily_AllRegions,
+    Monthly_AllRegions = Monthly_AllRegions
+  ),
+  out_xlsx
+)
+
+message("✅ Wrote combined workbook: ", out_xlsx)
+
+#detach("package:plyr", unload = TRUE)
+#find("summarise")
