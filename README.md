@@ -111,7 +111,7 @@ Each country/region is split into segments:
 
 ## ⚙️ Parameter Tuning
 
-|  | Country | | | | | Region | |
+|  | Countries: | | | | | Regions: | |
 |---|---|---|---|---|---|---|---|
 | **Parameter** | **Marketing** | **Edu** org, iOS/and | **Edu** org, web | **NonEdu** org, iOS/and | **NonEdu** org, web | **Edu** | **NonEdu** |
 |---|---|---|---|---|---|---|---|
