@@ -35,6 +35,7 @@ Loaded from a defined input directory:
 - `collated_holidays.csv`: National holidays per country using the `generated_holiday.csv` made by <a href="https://github.com/facebook/prophet/blob/main/R/data-raw/generated_holidays.csv" target="_blank">tcuongd</a> as a base, the relevant holidays for regions have been collated with additional holidays that do not appear as national holidays also included. For example, Easter is not officially a national holiday in the US, however, it has an impact on signups, therefore, the `generated_holidays.csv` has been patched accordingly.
 - `Campaigns.csv`: Binary daily campaign indicators that indicates when large <a href="https://www.canva.com/design/DAGhA6JlVV8/uqkHv6dBdYmRLxMG4PXUIQ/edit" target="_blank">promotional campaigns</a> have run. 
 - `Looker_MS_AF_W.csv`: Weekly actual marketing spend. The historical marketing spend has been retrieved from <a href="https://canvalooker.au.looker.com/explore/marketing_and_engagement/marketing_spend_pacing?toggle=fil&qid=Fjgzh9s1hKVylNTp0S9dHO" target="_blank">Looker</a>
+- `Looker_MS_AF_D.csv`: Daily actual marketing spend. The historical marketing spend has been retrieved from <a href="https://canvalooker.au.looker.com/explore/marketing_and_engagement/marketing_spend_pacing?toggle=fil&qid=GNKJ6xhXsBUbooUFhlAKQK" target="_blank">Looker</a>
 - `MS_F_M.csv`: Monthly marketing budget forecasts. The marketing spend budget is retrieved from the `Finance` tab in <a href="https://docs.google.com/spreadsheets/d/14gZr9yRIwZ8c_sv5KOVUF8ZLZfZWXef9yL5BrewoO3c/edit?gid=1035177928#gid=1035177928" target="_blank">B2C Go-to-Market budget</a>. This weekly data is transformed into daily spend by taking the average spend per day. 
 
 ### Key Dates & Inputs
@@ -112,7 +113,7 @@ Each country/region is split into segments:
 
 |  | Country | | | | | Region | |
 |---|---|---|---|---|---|---|---|
-| **Parameter** | **Marketing** | **Edu organic iOS/And** | **Edu organic web** | **NonEdu organic iOS/And** | **NonEdu organic web** | **Edu** | **NonEdu** |
+| **Parameter** | **Marketing** | **Edu** org, iOS/and | **Edu** org, web | **NonEdu** org, iOS/and | **NonEdu** org, web | **Edu** | **NonEdu** |
 |---|---|---|---|---|---|---|---|
 | changepoint.range | `0.78` [1] | `0.80` [2] | `0.80` [2] | `0.76` [3] | `0.76` [3] | `0.80` [2] | `0.76` [3] |
 | holidays | holidays | holidays | holidays | holidays | holidays | holidays | holidays |
@@ -126,16 +127,30 @@ Each country/region is split into segments:
 
 ### Notes
 
+`changepoint.range`
+
 1. Marketing spend drives structural shifts; `0.78` reaches ~Apr 2025 with a ~10-month buffer.
 2. Edu growth decelerated structurally in 2024–25; later cutoff lets Prophet see this as a possible changepoint. Applies to Edu organic country (iOS, Android, web) and Regions Edu.
 3. Trend is stable and cyclical; extra buffer protects against mistaking the Sep seasonal uplift for a trend break. Applies to NonEdu organic country (iOS, Android, web) and Regions NonEdu.
+
+`weekly.seasonality`
+
 4. Edu organic web has the strongest weekly signal of all segments (wk_cv `0.43`); extra Fourier term better captures the weekday/weekend shape.
 5. NonEdu organic web has the weakest weekly seasonality of all country segments (wk_cv `0.18`); lower order reduces overfitting risk on a relatively flat weekly pattern.
 6. Aggregation across countries dampens individual weekly patterns (wk_cv `0.07`–`0.17`); lower order avoids overfitting the smoother regional signal.
+
+`yearly.seasonality`
+
 7. Marketing has the highest yearly variation of all segments (yr_cv `0.45`); higher order needed to capture sharp back-to-school peaks.
 8. Strong yearly seasonality across Edu organic (yr_cv `0.29`–`0.31`); school calendars drive distinct seasonal shapes that benefit from extra Fourier terms.
 9. Region Edu iOS shows notably high yearly variation (yr_cv `0.36`); higher order helps model multi-country school calendar effects.
+
+`seasonality.mode`
+
 10. Seasonal amplitude scales with trend level for Edu; additive retained for NonEdu and Marketing where seasonal variance is stable relative to trend.
+
+`seasonality.prior.scale`
+
 11. NonEdu organic iOS/Android and web have flat yearly patterns (yr_cv `0.07`–`0.09`); the permissive default of `10` risks fitting noise as seasonal signal. Cross-validate against 10 before committing.
 12. Aggregation further smooths seasonality in Regions NonEdu; tighter prior reduces overfitting risk in the regional series. Cross-validate against `10` before committing.
 
