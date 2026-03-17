@@ -108,22 +108,36 @@ Each country/region is split into segments:
 
 5. **Visualize forecasts** using base Prophet plotting
 
-### Variations in Forecasting 
-1. **Marketing Models**:
-   - Uses daily marketing spend as regressor 
-   - Additive seasonality mode
-  
-2. **Education Organic Models**:
-   - Multiplicative seasonality mode
-  
-3. **NonEdu Organic Models**:
-   - Additive seasonality mode
+## ⚙️ Parameter Tuning
 
-4. **iOS & Android Models**:
-   - Uses weekly marketing spend as regressor 
-  
-5. **web Models**:
-   - Does not use marketing spend as regressor
+|  | Country | | | | | Region | |
+|---|---|---|---|---|---|---|---|
+| **Parameter** | **Marketing** | **Edu organic iOS/And** | **Edu organic web** | **NonEdu organic iOS/And** | **NonEdu organic web** | **Edu** | **NonEdu** |
+|---|---|---|---|---|---|---|---|
+| changepoint.range | `0.78` [1] | `0.80` [2] | `0.80` [2] | `0.76` [3] | `0.76` [3] | `0.80` [2] | `0.76` [3] |
+| holidays | holidays | holidays | holidays | holidays | holidays | holidays | holidays |
+| daily.seasonality | `FALSE` | `FALSE` | `FALSE` | `FALSE` | `FALSE` | `FALSE` | `FALSE` |
+| weekly.seasonality | `4` | `4` | `5` [4] | `4` | `3` [5] | `4` | `3` [6] |
+| yearly.seasonality | `12` [7] | `12` [8] | `12` [8] | `9.5` | `9.5` | `12` [9] | `9.5` |
+| seasonality.mode | `additive` | `multiplicative` [10] | `multiplicative` [10] | `additive` | `additive` | `multiplicative` [10] | `additive` |
+| changepoint.prior.scale | `0.05` | `0.05` | `0.05` | `0.05` | `0.05` | `0.05` | `0.05` |
+| seasonality.prior.scale | `10` | `10` | `10` | `5` [11] | `5` [11] | `10` | `5` [12] |
+| holidays.prior.scale | `10` | `10` | `10` | `10` | `10` | `10` | `10` |
+
+### Notes
+
+1. Marketing spend drives structural shifts; `0.78` reaches ~Apr 2025 with a ~10-month buffer.
+2. Edu growth decelerated structurally in 2024–25; later cutoff lets Prophet see this as a possible changepoint. Applies to Edu organic country (iOS, Android, web) and Regions Edu.
+3. Trend is stable and cyclical; extra buffer protects against mistaking the Sep seasonal uplift for a trend break. Applies to NonEdu organic country (iOS, Android, web) and Regions NonEdu.
+4. Edu organic web has the strongest weekly signal of all segments (wk_cv `0.43`); extra Fourier term better captures the weekday/weekend shape.
+5. NonEdu organic web has the weakest weekly seasonality of all country segments (wk_cv `0.18`); lower order reduces overfitting risk on a relatively flat weekly pattern.
+6. Aggregation across countries dampens individual weekly patterns (wk_cv `0.07`–`0.17`); lower order avoids overfitting the smoother regional signal.
+7. Marketing has the highest yearly variation of all segments (yr_cv `0.45`); higher order needed to capture sharp back-to-school peaks.
+8. Strong yearly seasonality across Edu organic (yr_cv `0.29`–`0.31`); school calendars drive distinct seasonal shapes that benefit from extra Fourier terms.
+9. Region Edu iOS shows notably high yearly variation (yr_cv `0.36`); higher order helps model multi-country school calendar effects.
+10. Seasonal amplitude scales with trend level for Edu; additive retained for NonEdu and Marketing where seasonal variance is stable relative to trend.
+11. NonEdu organic iOS/Android and web have flat yearly patterns (yr_cv `0.07`–`0.09`); the permissive default of `10` risks fitting noise as seasonal signal. Cross-validate against 10 before committing.
+12. Aggregation further smooths seasonality in Regions NonEdu; tighter prior reduces overfitting risk in the regional series. Cross-validate against `10` before committing.
 
 ## 📤 Output Generation
 
