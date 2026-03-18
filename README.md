@@ -113,11 +113,12 @@ Each country/region is split into segments:
 
 |  | Countries: | | | | | Regions: | |
 |---|---|---|---|---|---|---|---|
-| **Parameter** | **Marketing** | **Edu** org, iOS/and | **Edu** org, web | **NonEdu** org, iOS/and | **NonEdu** org, web | **Edu** | **NonEdu** |
-|---|---|---|---|---|---|---|---|
+| **Parameter** | **Marketing** | **Edu** | **Edu** | **NonEdu** | **NonEdu** | **Edu** | **NonEdu** |
+|Additional Dimensions|All|org, iOS/and|org, web|org, iOS/and|org, web|All|All|
+|------------------------------|------------------------------|------------------------------|------------------------------|------------------------------|------------------------------|------------------------------|------------------------------|
 | changepoint.range | `0.78` [1] | `0.80` [2] | `0.80` [2] | `0.76` [3] | `0.76` [3] | `0.80` [2] | `0.76` [3] |
-| holidays | holidays | holidays | holidays | holidays | holidays | holidays | holidays |
-| daily.seasonality | `FALSE` | `FALSE` | `FALSE` | `FALSE` | `FALSE` | `FALSE` | `FALSE` |
+| holidays | holidays |
+| daily.seasonality | `FALSE` |
 | weekly.seasonality | `4` | `4` | `5` [4] | `4` | `3` [5] | `4` | `3` [6] |
 | yearly.seasonality | `12` [7] | `12` [8] | `12` [8] | `9.5` | `9.5` | `12` [9] | `9.5` |
 | seasonality.mode | `additive` | `multiplicative` [10] | `multiplicative` [10] | `additive` | `additive` | `multiplicative` [10] | `additive` |
