@@ -12,15 +12,14 @@
  Date is set automatically to today — nothing else to change.
 
  FIRST-TIME SETUP (run once in terminal):
-   pip install pandas weasyprint
-   brew install pango        ← Mac
-   # or: sudo apt-get install libpango-1.0-0   ← Linux
+   pip install pandas
+   PDF export uses Google Chrome (headless); install Chrome on your machine.
 
  OUTPUT:
    ~/Documents/GitHub/profit-from-prophet/Global_Daily_Commentary.pdf
 =============================================================
 """
-import datetime, warnings, os
+import datetime, warnings, os, shutil, subprocess
 warnings.filterwarnings('ignore')
 import pandas as pd
 
@@ -138,21 +137,30 @@ REGIONS['NAMER'] = {
     'holiday_table': {
         'United States of America': {
             'headers': ['Year', 'Easter', 'Thanksgiving'],
-            'rows': [('2027','Mar 26 - Apr 1','Nov 25'),('2026','Apr 2-6','Nov 26'),
-                     ('2025','Apr 17-21','Nov 27'),('2024','Mar 28 - Apr 1','Nov 28'),
-                     ('2023','Apr 6-10','Nov 23'),('2022','Apr 14-18','Nov 24')],
+            'rows': [('2027','Mar 26 - Apr 1','Nov 25'),
+                     ('2026','Apr 2 - 6','Nov 26'),
+                     ('2025','Apr 17 - 21','Nov 27'),
+                     ('2024','Mar 28 - Apr 1','Nov 28'),
+                     ('2023','Apr 6 - 10','Nov 23'),
+                     ('2022','Apr 14 - 18','Nov 24')],
         },
         'Canada': {
             'headers': ['Year', 'Easter', 'Thanksgiving'],
-            'rows': [('2027','Mar 26 - Apr 1','Oct 11-13'),('2026','Apr 2-6','Oct 12-14'),
-                     ('2025','Apr 17-21','Oct 13-15'),('2024','Mar 28 - Apr 1','Oct 14-16'),
-                     ('2023','Apr 6-10','Oct 9-11'),('2022','Apr 14-18','Oct 10-12')],
+            'rows': [('2027','Mar 26 - Apr 1','Oct 11 - 13'),
+                     ('2026','Apr 2 - 6','Oct 12 - 14'),
+                     ('2025','Apr 17 - 21','Oct 13 - 15'),
+                     ('2024','Mar 28 - Apr 1','Oct 14 - 16'),
+                     ('2023','Apr 6 - 10','Oct 9 - 11'),
+                     ('2022','Apr 14 - 18','Oct 10 - 12')],
         },
         'Australia': {
             'headers': ['Year', 'Easter', 'Summer School Break'],
-            'rows': [('2027','Mar 26 - Apr 1','Jan - Feb'),('2026','Apr 2-6','Jan - Feb'),
-                     ('2025','Apr 17-21','Jan - Feb'),('2024','Mar 28 - Apr 1','Jan - Feb'),
-                     ('2023','Apr 6-10','Jan - Feb'),('2022','Apr 14-18','Jan - Feb')],
+            'rows': [('2027','Mar 26 - Apr 1','Jan - Feb'),
+                     ('2026','Apr 2 - 6','Jan - Feb'),
+                     ('2025','Apr 17 - 21','Jan - Feb'),
+                     ('2024','Mar 28 - Apr 1','Jan - Feb'),
+                     ('2023','Apr 6 - 10','Jan - Feb'),
+                     ('2022','Apr 14 - 18','Jan - Feb')],
         },
     },
     'anns': {
@@ -237,66 +245,93 @@ REGIONS['Europe'] = {
     'holiday_table': {
         'United Kingdom': {
             'headers': ['Year', 'Easter', 'Summer School Break Start'],
-            'rows': [('2027','Mar 26 - Apr 1','mid Jul'),('2026','Apr 2-6','mid Jul'),
-                     ('2025','Apr 17-21','mid Jul'),('2024','Mar 28 - Apr 1','mid Jul'),
-                     ('2023','Apr 6-10','mid Jul'),('2022','Apr 14-18','mid Jul')],
+            'rows': [('2027','Mar 26 - Apr 1','mid Jul'),
+                     ('2026','Apr 2 - 6','mid Jul'),
+                     ('2025','Apr 17 - 21','mid Jul'),
+                     ('2024','Mar 28 - Apr 1','mid Jul'),
+                     ('2023','Apr 6 - 10','mid Jul'),
+                     ('2022','Apr 14 - 18','mid Jul')],
         },
         'Spain': {
             'headers': ['Year', 'Easter (Semana Santa)', 'Ferragosto / Summer Shutdown'],
-            'rows': [('2027','Mar 26 - Apr 1','Aug 1-31'),('2026','Apr 2-6','Aug 1-31'),
-                     ('2025','Apr 17-21','Aug 1-31'),('2024','Mar 28 - Apr 1','Aug 1-31'),
-                     ('2023','Apr 6-10','Aug 1-31'),('2022','Apr 14-18','Aug 1-31')],
+            'rows': [('2027','Mar 26 - Apr 1','Aug 1 - 31'),
+                     ('2026','Apr 2 - 6','Aug 1 - 31'),
+                     ('2025','Apr 17 - 21','Aug 1 - 31'),
+                     ('2024','Mar 28 - Apr 1','Aug 1 - 31'),
+                     ('2023','Apr 6 - 10','Aug 1 - 31'),
+                     ('2022','Apr 14 - 18','Aug 1 - 31')],
         },
         'France': {
             'headers': ['Year', 'Easter', 'Summer School Break Start'],
-            'rows': [('2027','Mar 26 - Apr 1','early Jul'),('2026','Apr 2-6','early Jul'),
-                     ('2025','Apr 17-21','early Jul'),('2024','Mar 28 - Apr 1','early Jul'),
-                     ('2023','Apr 6-10','early Jul'),('2022','Apr 14-18','early Jul')],
+            'rows': [('2027','Mar 26 - Apr 1','early Jul'),
+                     ('2026','Apr 2 - 6','early Jul'),
+                     ('2025','Apr 17 - 21','early Jul'),
+                     ('2024','Mar 28 - Apr 1','early Jul'),
+                     ('2023','Apr 6 - 10','early Jul'),
+                     ('2022','Apr 14 - 18','early Jul')],
         },
         'Italy': {
             'headers': ['Year', 'Easter (Pasqua)', 'Ferragosto Shutdown'],
-            'rows': [('2027','Mar 26 - Apr 1','Aug 1-20'),('2026','Apr 2-6','Aug 1-20'),
-                     ('2025','Apr 17-21','Aug 1-20'),('2024','Mar 28 - Apr 1','Aug 1-20'),
-                     ('2023','Apr 6-10','Aug 1-20'),('2022','Apr 14-18','Aug 1-20')],
+            'rows': [('2027','Mar 26 - Apr 1','Aug 1 - 20'),
+                     ('2026','Apr 2 - 6','Aug 1 - 20'),
+                     ('2025','Apr 17 - 21','Aug 1 - 20'),
+                     ('2024','Mar 28 - Apr 1','Aug 1 - 20'),
+                     ('2023','Apr 6 - 10','Aug 1 - 20'),
+                     ('2022','Apr 14 - 18','Aug 1 - 20')],
         },
         'Sweden-Nordics': {
             'headers': ['Year', 'Easter', 'Midsommar'],
-            'rows': [('2027','Mar 26 - Apr 1','Jun 26'),('2026','Apr 2-6','Jun 27'),
-                     ('2025','Apr 17-21','Jun 28'),('2024','Mar 28 - Apr 1','Jun 29'),
-                     ('2023','Apr 6-10','Jun 24'),('2022','Apr 14-18','Jun 25')],
+            'rows': [('2027','Mar 26 - Apr 1','Jun 26'),
+                     ('2026','Apr 2 - 6','Jun 27'),
+                     ('2025','Apr 17 - 21','Jun 28'),
+                     ('2024','Mar 28 - Apr 1','Jun 29'),
+                     ('2023','Apr 6 - 10','Jun 24'),
+                     ('2022','Apr 14 - 18','Jun 25')],
         },
         'Germany': {
             'headers': ['Year', 'Easter', 'Summer School Break Start'],
-            'rows': [('2027','Mar 26 - Apr 1','Jun-Jul (by state)'),('2026','Apr 2-6','Jun-Jul (by state)'),
-                     ('2025','Apr 17-21','Jun-Jul (by state)'),('2024','Mar 28 - Apr 1','Jun-Jul (by state)'),
-                     ('2023','Apr 6-10','Jun-Jul (by state)'),('2022','Apr 14-18','Jun-Jul (by state)')],
+            'rows': [('2027','Mar 26 - Apr 1','Jun - Jul (by state)'),
+                     ('2026','Apr 2 - 6','Jun - Jul (by state)'),
+                     ('2025','Apr 17 - 21','Jun - Jul (by state)'),
+                     ('2024','Mar 28 - Apr 1','Jun - Jul (by state)'),
+                     ('2023','Apr 6 - 10','Jun - Jul (by state)'),
+                     ('2022','Apr 14 - 18','Jun - Jul (by state)')],
         },
         'Poland': {
             'headers': ['Year', 'Easter', 'Summer School Break Start'],
-            'rows': [('2027','Mar 26 - Apr 1','late Jun'),('2026','Apr 2-6','late Jun'),
-                     ('2025','Apr 17-21','late Jun'),('2024','Mar 28 - Apr 1','late Jun'),
-                     ('2023','Apr 6-10','late Jun'),('2022','Apr 14-18','late Jun')],
+            'rows': [('2027','Mar 26 - Apr 1','late Jun'),
+                     ('2026','Apr 2 - 6','late Jun'),
+                     ('2025','Apr 17 - 21','late Jun'),
+                     ('2024','Mar 28 - Apr 1','late Jun'),
+                     ('2023','Apr 6 - 10','late Jun'),
+                     ('2022','Apr 14 - 18','late Jun')],
         },
         'Turkey': {
             'headers': ['Year', 'Ramadan', 'Eid al-Fitr', 'Eid al-Adha'],
-            'rows': [('2027','~Feb 18 - Mar 19','~Mar 20-22','~May 27-29'),
-                     ('2026','Feb 18 - Mar 19','Mar 20-22','May 27-29'),
-                     ('2025','Mar 1-29',        'Mar 30 - Apr 1','Jun 6-9'),
-                     ('2024','Mar 11 - Apr 9',  'Apr 10-12','Jun 16-19'),
-                     ('2023','Mar 23 - Apr 20', 'Apr 21-23','Jun 28 - Jul 1'),
-                     ('2022','Apr 2 - May 1',   'May 2-4',  'Jul 9-12')],
+            'rows': [('2027','Feb 8 - Mar 8',   'Mar 10',   'May 16 - 19'),
+                     ('2026','Feb 18 - Mar 19', 'Mar 19',   'May 27 - 30'),
+                     ('2025','Mar 1 - 29',      'Mar 30',   'Jun 6 - 9'),
+                     ('2024','Mar 11 - Apr 9',  'Apr 9',    'Jun 17 - 19'),
+                     ('2023','Mar 23 - Apr 20', 'Apr 21',   'Jun 28 - 30'),
+                     ('2022','Apr 2 - May 1',   'May 2',    'Jul 9 - 12')],
         },
         'Netherlands': {
             'headers': ['Year', 'Easter', 'Summer School Break Start'],
-            'rows': [('2027','Mar 26 - Apr 1','mid Jul'),('2026','Apr 2-6','mid Jul'),
-                     ('2025','Apr 17-21','mid Jul'),('2024','Mar 28 - Apr 1','mid Jul'),
-                     ('2023','Apr 6-10','mid Jul'),('2022','Apr 14-18','mid Jul')],
+            'rows': [('2027','Mar 26 - Apr 1','mid Jul'),
+                     ('2026','Apr 2 - 6','mid Jul'),
+                     ('2025','Apr 17 - 21','mid Jul'),
+                     ('2024','Mar 28 - Apr 1','mid Jul'),
+                     ('2023','Apr 6 - 10','mid Jul'),
+                     ('2022','Apr 14 - 18','mid Jul')],
         },
         'Czech Republic': {
             'headers': ['Year', 'Easter', 'Summer School Break Start'],
-            'rows': [('2027','Mar 26 - Apr 1','late Jun'),('2026','Apr 2-6','late Jun'),
-                     ('2025','Apr 17-21','late Jun'),('2024','Mar 28 - Apr 1','late Jun'),
-                     ('2023','Apr 6-10','late Jun'),('2022','Apr 14-18','late Jun')],
+            'rows': [('2027','Mar 26 - Apr 1','late Jun'),
+                     ('2026','Apr 2 - 6','late Jun'),
+                     ('2025','Apr 17 - 21','late Jun'),
+                     ('2024','Mar 28 - Apr 1','late Jun'),
+                     ('2023','Apr 6 - 10','late Jun'),
+                     ('2022','Apr 14 - 18','late Jun')],
         },
     },
     'anns': {
@@ -432,25 +467,29 @@ REGIONS['MENAP_SSA'] = {
     'holiday_table': {
         'GCC': {
             'headers': ['Year', 'Ramadan', 'Eid al-Fitr', 'Eid al-Adha'],
-            'rows': [('2027','~Feb 18 - Mar 19','~Mar 20-22','~May 27-29'),
-                     ('2026','Feb 18 - Mar 19', 'Mar 20-22', 'May 27-29'),
-                     ('2025','Mar 1-29',         'Mar 30 - Apr 1','Jun 6-9'),
-                     ('2024','Mar 11 - Apr 9',   'Apr 10-12','Jun 16-19'),
-                     ('2023','Mar 23 - Apr 20',  'Apr 21-23','Jun 28 - Jul 1'),
-                     ('2022','Apr 2 - May 1',    'May 2-4',  'Jul 9-12')],
+            'rows': [('2027','Feb 8 - Mar 8',   'Mar 10',   'May 16 - 19'),
+                     ('2026','Feb 18 - Mar 19', 'Mar 19',   'May 27 - 30'),
+                     ('2025','Mar 1 - 29',      'Mar 30',   'Jun 6 - 9'),
+                     ('2024','Mar 11 - Apr 9',  'Apr 9',    'Jun 17 - 19'),
+                     ('2023','Mar 23 - Apr 20', 'Apr 21',   'Jun 28 - 30'),
+                     ('2022','Apr 2 - May 1',   'May 2',    'Jul 9 - 12')],
         },
         'South Africa': {
             'headers': ['Year', 'Easter', 'Summer School Break'],
-            'rows': [('2027','Mar 26 - Apr 1','Dec - Jan'),('2026','Apr 2-6','Dec - Jan'),
-                     ('2025','Apr 17-21','Dec - Jan'),('2024','Mar 28 - Apr 1','Dec - Jan'),
-                     ('2023','Apr 6-10','Dec - Jan'),('2022','Apr 14-18','Dec - Jan')],
+            'rows': [('2027','Mar 26 - Apr 1','Dec - Jan'),
+                     ('2026','Apr 2 - 6','Dec - Jan'),
+                     ('2025','Apr 17 - 21','Dec - Jan'),
+                     ('2024','Mar 28 - Apr 1','Dec - Jan'),
+                     ('2023','Apr 6 - 10','Dec - Jan'),
+                     ('2022','Apr 14 - 18','Dec - Jan')],
         },
     },
     'anns': {
         'GCC':          [{'lb':'T1','t':'T','date':datetime.date(2023,3,1)},
                           {'lb':'S1','t':'S','hol':'Ramadan','yrs':[2022,2023,2024,2025,2026]},
                           {'lb':'S2','t':'S','hol':'Eid al-Fitr','yrs':[2022,2023,2024,2025,2026]},
-                          {'lb':'S3','t':'S','hol':'Eid al-Adha','yrs':[2022,2023,2024,2025,2026]}],
+                          {'lb':'S3','t':'S','hol':'Eid al-Adha','yrs':[2022,2023,2024,2025,2026]},
+                          {'lb':'A17','t':'A','date':datetime.date(2026,2,28)}],
         'South Africa': [{'lb':'T1','t':'T','date':datetime.date(2023,3,1)},
                           {'lb':'S1','t':'S','hol':'Easter','yrs':[2022,2023,2024,2025,2026]},
                           {'lb':'A16','t':'A','hol':'Decel Nov25','yrs':[2025]}],
@@ -465,6 +504,9 @@ REGIONS['MENAP_SSA'] = {
         'GCC':          [('A15','Ramadan 2026 Early Arrival',
                           'Ramadan started Feb 28 2026 — combined with structural deceleration, MENAP Feb 2026 showed -27pp swing vs baseline. '
                           'Back-to-school Sep peak remains the most reliable positive seasonal signal for GCC each year.'),
+                         ('A17','US-Israel Military Action on Iran (28 Feb 2026)',
+                          'The US-Israeli war on Iran began on February 28, 2026, with joint strikes on Iranian leadership and military infrastructure, '
+                          'followed by Iranian retaliatory strikes on Gulf states hosting US forces and airspace closures.'),
                          ('T2','Post-AI Normalisation',
                           'YoY growth has decelerated since 2023 as the inflated base rolls through comparisons.')],
         'South Africa': [('A16','Growth Rate Deceleration from Nov 2025',
@@ -489,31 +531,40 @@ REGIONS['CJKI'] = {
     ],
     'holiday_table': {
         'China': {
-            'headers': ['Year', 'Lunar New Year', 'Mid-Autumn Festival', 'Golden Week'],
-            'rows': [('2027','Feb 6-12',       'Oct 1','Oct 1-7'),
-                     ('2026','Feb 17-23',       'Sep 25','Oct 1-7'),
-                     ('2025','Jan 29 - Feb 4',  'Oct 6','Oct 1-7'),
-                     ('2024','Feb 10-16',       'Sep 17','Oct 1-7'),
-                     ('2023','Jan 22-28',       'Sep 29','Oct 1-7'),
-                     ('2022','Feb 1-7',         'Sep 10','Oct 1-7')],
+            'headers': ['Year', 'Lunar New Year', 'Mid-Autumn Festival'],
+            'rows': [('2027','Feb 6 - 12',       'Sep 14 - 16'),
+                     ('2026','Feb 17 - 23',       'Sep 25 - 27'),
+                     ('2025','Jan 29 - Feb 4',  'Oct 1 - 8'),
+                     ('2024','Feb 10 - 16',       'Sep 15 - 17'),
+                     ('2023','Jan 22 - 28',       'Sep 29 - Oct 6'),
+                     ('2022','Feb 1 - 7',         'Sep 10 - 12')],
         },
         'Japan': {
             'headers': ['Year', 'Golden Week', 'Obon'],
-            'rows': [('2027','Apr 29 - May 6','Aug 13-16'),('2026','Apr 29 - May 6','Aug 13-16'),
-                     ('2025','Apr 29 - May 6','Aug 13-16'),('2024','Apr 27 - May 6','Aug 13-16'),
-                     ('2023','Apr 29 - May 7','Aug 13-16'),('2022','Apr 29 - May 5','Aug 13-16')],
+            'rows': [('2027','Apr 29 - May 6','Aug 13 - 16'),
+                     ('2026','Apr 29 - May 6','Aug 13 - 16'),
+                     ('2025','Apr 29 - May 6','Aug 13 - 16'),
+                     ('2024','Apr 27 - May 6','Aug 13 - 16'),
+                     ('2023','Apr 29 - May 7','Aug 13 - 16'),
+                     ('2022','Apr 29 - May 5','Aug 13 - 16')],
         },
         'South Korea': {
             'headers': ['Year', 'Lunar New Year (Seollal)', 'Chuseok'],
-            'rows': [('2027','Jan 28-30','Sep 24-26'),('2026','Feb 16-18','Sep 24-26'),
-                     ('2025','Jan 28-30','Oct 4-6'),   ('2024','Feb 9-12','Sep 16-18'),
-                     ('2023','Jan 21-24','Sep 28-30'), ('2022','Jan 31 - Feb 2','Sep 9-12')],
+            'rows': [('2027','Jan 28 - 30',       'Sep 14 - 16'),
+                     ('2026','Feb 16 - 18',        'Sep 23 - 25'),
+                     ('2025','Jan 28 - 30',        'Oct 5 - 7'),
+                     ('2024','Feb 9 - 12',         'Sep 16 - 18'),
+                     ('2023','Jan 21 - 24',        'Sep 28 - 30'),
+                     ('2022','Jan 31 - Feb 2',   'Sep 9 - 11')],
         },
         'India': {
             'headers': ['Year', 'Diwali', 'Holi'],
-            'rows': [('2027','Oct 28-29','Mar 13-14'),('2026','Nov 7-8','Mar 3-4'),
-                     ('2025','Oct 20-21','Mar 13-14'),('2024','Oct 31 - Nov 1','Mar 24-25'),
-                     ('2023','Nov 12-13','Mar 7-8'),  ('2022','Oct 24-25','Mar 17-18')],
+            'rows': [('2027','Oct 28 - 29','Mar 13 - 14'),
+                     ('2026','Nov 7 - 8','Mar 3 - 4'),
+                     ('2025','Oct 20 - 21','Mar 13 - 14'),
+                     ('2024','Oct 31 - Nov 1','Mar 24 - 25'),
+                     ('2023','Nov 12 - 13','Mar 7 - 8'),
+                     ('2022','Oct 24 - 25','Mar 17 - 18')],
         },
     },
     'anns': {
@@ -541,7 +592,7 @@ REGIONS['CJKI'] = {
     'seasonal': {
         'China':       [('S1','Lunar New Year (Spring Festival)','Shifts 2-5 weeks each year (Jan 29 in 2025 vs Feb 17 in 2026). 7-day national holiday drives deepest annual MAU trough. Creates large YoY distortion in Jan-Feb window.'),
                          ('S2','Mid-Autumn Festival','Shifts 2-5 weeks Sep-Oct each year. Creates a secondary seasonal dip. Golden Week (Oct 1-7) is a fixed-date trough immediately following.'),],
-        'Japan':       [('S1','Golden Week (Apr 29 - May 6)','Cluster of national holidays creating a reliable early-May dip. Dates stable year-over-year. Obon (Aug 13-16) creates a secondary summer dip.'),],
+        'Japan':       [('S1','Golden Week (Apr 29 - May 6)','Cluster of national holidays creating a reliable early-May dip. Dates stable year-over-year. Obon (Aug 13 - 16) creates a secondary summer dip.'),],
         'South Korea': [('S1','Lunar New Year (Seollal)','Shifts 2-4 weeks Jan-Feb each year. Creates YoY distortion in the Jan-Mar window.'),
                          ('S2','Chuseok','Major autumn harvest holiday; shifts ~2 weeks Sep-Oct. Creates a recurring YoY noise period.'),],
         'India':       [('S1','Diwali','Shifts 2-4 weeks Oct-Nov each year. Creates a clear engagement spike (not dip) during the festival. YoY comparisons require Diwali-aligned windows.'),],
@@ -599,21 +650,30 @@ REGIONS['LATAM'] = {
     'holiday_table': {
         'Brazil': {
             'headers': ['Year', 'Carnival', 'Easter'],
-            'rows': [('2027','Feb 9-11',      'Mar 26 - Apr 1'),('2026','Feb 17-19','Apr 2-6'),
-                     ('2025','Mar 4-6',       'Apr 17-21'),  ('2024','Feb 13-15','Mar 28 - Apr 1'),
-                     ('2023','Feb 21-23',     'Apr 6-10'),    ('2022','Mar 1-3',  'Apr 14-18')],
+            'rows': [('2027','Feb 9 - 11',      'Mar 26 - Apr 1'),
+                     ('2026','Feb 17 - 19',     'Apr 2 - 6'),
+                     ('2025','Mar 4 - 6',       'Apr 17 - 21'),
+                     ('2024','Feb 13 - 15',     'Mar 28 - Apr 1'),
+                     ('2023','Feb 21 - 23',     'Apr 6 - 10'),
+                     ('2022','Mar 1 - 3',       'Apr 14 - 18')],
         },
         'Mexico': {
             'headers': ['Year', 'Easter (Semana Santa)', 'Día de Muertos'],
-            'rows': [('2027','Mar 26 - Apr 1','Nov 1-2'),('2026','Apr 2-6','Nov 1-2'),
-                     ('2025','Apr 17-21','Nov 1-2'),  ('2024','Mar 28 - Apr 1','Nov 1-2'),
-                     ('2023','Apr 6-10','Nov 1-2'),    ('2022','Apr 14-18','Nov 1-2')],
+            'rows': [('2027','Mar 26 - Apr 1','Nov 1 - 2'),
+                     ('2026','Apr 2 - 6','Nov 1 - 2'),
+                     ('2025','Apr 17 - 21','Nov 1 - 2'),
+                     ('2024','Mar 28 - Apr 1','Nov 1 - 2'),
+                     ('2023','Apr 6 - 10','Nov 1 - 2'),
+                     ('2022','Apr 14 - 18','Nov 1 - 2')],
         },
         'Argentina': {
             'headers': ['Year', 'Carnival', 'Easter'],
-            'rows': [('2027','Feb 8-9', 'Mar 26 - Apr 1'),('2026','Feb 16-17','Apr 2-6'),
-                     ('2025','Mar 3-4', 'Apr 17-21'),  ('2024','Feb 12-13','Mar 28 - Apr 1'),
-                     ('2023','Feb 20-21','Apr 6-10'), ('2022','Feb 28 - Mar 1','Apr 14-18')],
+            'rows': [('2027','Feb 9 - 11',      'Mar 26 - Apr 1'),
+                     ('2026','Feb 17 - 19',     'Apr 2 - 6'),
+                     ('2025','Mar 4 - 6',       'Apr 17 - 21'),
+                     ('2024','Feb 13 - 15',     'Mar 28 - Apr 1'),
+                     ('2023','Feb 21 - 23',     'Apr 6 - 10'),
+                     ('2022','Mar 1 - 3',       'Apr 14 - 18')],
         },
     },
     'anns': {
@@ -668,34 +728,40 @@ REGIONS['SEA'] = {
     ],
     'holiday_table': {
         'Indonesia': {
-            'headers': ['Year', 'Ramadan', 'Eid al-Fitr (Lebaran)', 'Eid al-Adha'],
-            'rows': [('2027','~Feb 18 - Mar 19','~Mar 20-22','~May 27-29'),
-                     ('2026','Feb 18 - Mar 19', 'Mar 20-22', 'May 27-29'),
-                     ('2025','Mar 1-29',         'Mar 30 - Apr 1','Jun 6-9'),
-                     ('2024','Mar 11 - Apr 9',   'Apr 10-12','Jun 16-19'),
-                     ('2023','Mar 23 - Apr 20',  'Apr 21-23','Jun 28 - Jul 1'),
-                     ('2022','Apr 2 - May 1',    'May 2-4',  'Jul 9-12')],
+            'headers': ['Year', 'Ramadan', 'Eid al-Fitr', 'Eid al-Adha'],
+            'rows': [('2027','Feb 8 - Mar 8',   'Mar 10',   'May 16 - 19'),
+                     ('2026','Feb 18 - Mar 19', 'Mar 19',   'May 27 - 30'),
+                     ('2025','Mar 1 - 29',      'Mar 30',   'Jun 6 - 9'),
+                     ('2024','Mar 11 - Apr 9',  'Apr 9',    'Jun 17 - 19'),
+                     ('2023','Mar 23 - Apr 20', 'Apr 21',   'Jun 28 - 30'),
+                     ('2022','Apr 2 - May 1',   'May 2',    'Jul 9 - 12')],
         },
         'Philippines': {
-            'headers': ['Year', 'Easter (Holy Week)', 'Academic Year Start', 'Academic Year End'],
-            'rows': [('2027','Mar 26 - Apr 1','~Jun 2026','~Mar-Apr 2027'),
-                     ('2026','Apr 2-6',        'Jun 16 2025','Mar 31 2026'),
-                     ('2025','Apr 17-21',      'Jul 29 2024','May 16 2025'),
-                     ('2024','Mar 28 - Apr 1', 'Aug 29 2023','May 31 2024'),
-                     ('2023','Apr 6-10',       'Aug 22 2022','Jul 7 2023'),
-                     ('2022','Apr 14-18',      '—','—')],
+            'headers': ['Year', 'Easter (Holy Week)', 'Academic Year End','Academic Year Start'],
+            'rows': [('2027','Mar 26 - Apr 1',  '',''),
+                     ('2026','Apr 2 - 6',        'Mar 31','Jun 8'),
+                     ('2025','Apr 17 - 21',      'May 16','Jun 16'),
+                     ('2024','Mar 28 - Apr 1', 'May 31','Jul 29'),
+                     ('2023','Apr 6 - 10',       'Jul 7','Aug 29'),
+                     ('2022','Apr 14 - 18',      '','Aug 22')],
         },
         'Thailand': {
             'headers': ['Year', 'Songkran', 'Loy Krathong'],
-            'rows': [('2027','Apr 13-15','Nov 1'),('2026','Apr 13-15','Nov 20'),
-                     ('2025','Apr 13-15','Nov 5'),('2024','Apr 13-15','Nov 15'),
-                     ('2023','Apr 13-15','Nov 27'),('2022','Apr 13-15','Nov 8')],
+            'rows': [('2027','Apr 13 - 15','Nov 1'),
+                     ('2026','Apr 13 - 15','Nov 20'),
+                     ('2025','Apr 13 - 15','Nov 5'),
+                     ('2024','Apr 13 - 15','Nov 15'),
+                     ('2023','Apr 13 - 15','Nov 27'),
+                     ('2022','Apr 13 - 15','Nov 8')],
         },
         'Vietnam': {
-            'headers': ['Year', 'Tết (Lunar New Year)', 'Reunification Day'],
-            'rows': [('2027','Jan 26 - Feb 1','Apr 30'),('2026','Feb 17-23','Apr 30'),
-                     ('2025','Jan 29 - Feb 4','Apr 30'),('2024','Feb 10-16','Apr 30'),
-                     ('2023','Jan 22-28','Apr 30'),('2022','Feb 1-7','Apr 30')],
+            'headers': ['Year', 'Tết (Lunar New Year)'],
+            'rows': [('2027','Jan 26 - Feb 1'),
+                     ('2026','Feb 17 - 23'),
+                     ('2025','Jan 29 - Feb 4'),
+                     ('2024','Feb 10 - 16'),
+                     ('2023','Jan 22 - 28'),
+                     ('2022','Feb 1 - 7')],
         },
     },
     'anns': {
@@ -722,10 +788,10 @@ REGIONS['SEA'] = {
         'Indonesia':   [('S1','Ramadan','Shifts ~11 days earlier each year. Usage dip during fasting hours. Requires calendar-adjusted YoY comparisons.'),
                          ('S2','Eid al-Fitr (Lebaran)','Largest Indonesian holiday — multi-day celebration after Ramadan. Creates sharp spike then travel-driven dip. Also shifts ~11 days earlier per year.'),
                          ('S3','Eid al-Adha','4-day sacrifice holiday ~70 days after Eid al-Fitr. Secondary seasonal dip. Also shifts ~11 days earlier per year.'),],
-        'Philippines': [('S1','Easter (Holy Week)','One of the strongest Easter effects globally — entire Holy Week (Mon-Sun) widely observed. Shifts 2-4 weeks Mar-Apr creating significant YoY distortion.'),
-                         ('S2','Academic Year Start','Start date has shifted significantly each year due to post-COVID transition: Aug 22 (2022), Aug 29 (2023), Jul 29 (2024), Jun 16 (2025), ~Jun (2026). Creates a moving engagement lift that changes position by 1-2 months annually. Cannot be compared year-over-year without aligning to the academic calendar, not the calendar month.'),
+        'Philippines': [('S1','Easter (Holy Week)','One of the strongest Easter effects globally — entire Holy Week (Mon-Sun) widely observed. '),
+                         ('S2','Academic Year Start','Start date has shifted significantly each year due to post-COVID transition: Aug 22 (2022), Aug 29 (2023), Jul 29 (2024), Jun 16 (2025), ~Jun (2026). Creates a moving engagement lift that changes position by 1-2 months annually. Cannot be compared YoY on a calendar month basis.'),
                          ('S3','Academic Year End','End date also shifts: Jul 7 (2023), May 31 (2024), May 16 (2025), Mar 31 (2026). Each year-end creates a engagement trough as students finish. The Mar 31 2026 end is unusually early and may suppress Q1 2026 MAU.'),],
-        'Thailand':    [('S1','Songkran (Thai New Year)','Fixed Apr 13-15 (extended to ~1 week in practice). Creates a reliable mid-Apr dip. Thailand is countercyclical — Jul-Sep is the annual peak (school projects), not a trough.'),],
+        'Thailand':    [('S1','Songkran (Thai New Year)','Fixed Apr 13 - 15 (extended to ~1 week in practice). Creates a reliable mid-Apr dip. Thailand is countercyclical — Jul-Sep is the annual peak (school projects), not a trough.'),],
         'Vietnam':     [('S1','Tết (Lunar New Year)','Largest holiday of the year. Shifts 2-4 weeks Jan-Feb (Jan 29 in 2025 vs Feb 17 in 2026). Creates deepest annual MAU trough. Jan-Mar YoY comparisons require Tết-aligned adjustment.'),],
     },
     'abnorm': {
@@ -975,49 +1041,37 @@ if __name__ == '__main__':
 
     html_str = f'<!DOCTYPE html><html><head><meta charset="utf-8"><style>{CSS}</style></head><body>{all_pages}</body></html>'
     html_path = os.path.join(OUT_DIR, 'Global_Daily_Commentary.html')
-    out_path  = os.path.join(OUT_DIR, 'Global_Daily_Commentary.pdf')
+    out_path = os.path.join(OUT_DIR, 'Global_Daily_Commentary.pdf')
 
-    # Write HTML first (always works, useful as fallback)
     with open(html_path, 'w', encoding='utf-8') as f:
         f.write(html_str)
-    print(f'HTML saved -> {html_path}')
 
-    # Try PDF via WeasyPrint, then via Chrome headless, then give up gracefully
-    pdf_ok = False
+    chrome_paths = [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        shutil.which('chromium'),
+        shutil.which('google-chrome'),
+    ]
+    chrome = next((p for p in chrome_paths if p and os.path.exists(p)), None)
+    if not chrome:
+        raise RuntimeError('Google Chrome or Chromium not found — required for PDF export.')
 
-    # Attempt 1: WeasyPrint
-    try:
-        from weasyprint import HTML
-        HTML(string=html_str).write_pdf(out_path)
-        print(f'PDF saved  -> {out_path}')
-        pdf_ok = True
-    except Exception as e:
-        print(f'WeasyPrint failed ({e}), trying Chrome...')
+    file_url = 'file://' + html_path
+    result = subprocess.run(
+        [
+            chrome,
+            '--headless',
+            '--disable-gpu',
+            '--no-sandbox',
+            f'--print-to-pdf={out_path}',
+            '--print-to-pdf-no-header',
+            file_url,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if not os.path.exists(out_path):
+        err = (result.stderr or '') + (result.stdout or '')
+        raise RuntimeError(f'Chrome did not produce a PDF. {err[:500]}')
 
-    # Attempt 2: Chrome headless (works on any Mac with Chrome installed)
-    if not pdf_ok:
-        import subprocess, shutil
-        chrome_paths = [
-            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-            '/Applications/Chromium.app/Contents/MacOS/Chromium',
-            shutil.which('chromium'), shutil.which('google-chrome'),
-        ]
-        chrome = next((p for p in chrome_paths if p and os.path.exists(p)), None)
-        if chrome:
-            result = subprocess.run([
-                chrome,
-                '--headless', '--disable-gpu', '--no-sandbox',
-                f'--print-to-pdf={out_path}',
-                '--print-to-pdf-no-header',
-                f'file://{html_path}'
-            ], capture_output=True, text=True)
-            if os.path.exists(out_path):
-                print(f'PDF saved  -> {out_path}  (via Chrome)')
-                pdf_ok = True
-            else:
-                print(f'Chrome failed: {result.stderr[:200]}')
-        else:
-            print('Chrome not found.')
-
-    if not pdf_ok:
-        print(f'\nCould not generate PDF. Open the HTML file directly in Chrome and Print → Save as PDF:\n  {html_path}')
+    print(f'PDF saved  -> {out_path}  (via Chrome)')
